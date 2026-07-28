@@ -1,33 +1,41 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Open_Sans } from "next/font/google";
+import { BrandingStyle } from "@/components/BrandingStyle";
+import { getBrandingFromDb } from "@/data/queries";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+const openSans = Open_Sans({
+  variable: "--font-open-sans",
+  subsets: ["latin", "vietnamese"],
+  weight: ["400", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const branding = await getBrandingFromDb();
+  return {
+    title: "Trang Chủ - Thế Giới Thuốc Mới",
+    description:
+      "Thế Giới Thuốc Mới - Cập nhật thông tin thuốc, liệu pháp gene, vaccine và y học",
+    icons: {
+      icon: branding.faviconSrc,
+      apple: branding.faviconSrc,
+    },
+  };
+}
 
-export const metadata: Metadata = {
-  title: "Website Clone",
-  description: "Pixel-perfect website clone",
-};
-
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const branding = await getBrandingFromDb();
+
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="vi" className={`${openSans.variable} h-full antialiased`} id="top">
+      <body className="min-h-full bg-white text-[#0a0a0a]">
+        <BrandingStyle branding={branding} />
+        {children}
+      </body>
     </html>
   );
 }

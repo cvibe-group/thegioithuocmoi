@@ -47,3 +47,6 @@ next-env.d.ts
 
 # Local temp files
 temp/
+
+# WP migrate extract output
+scripts/migrate-wp/out/

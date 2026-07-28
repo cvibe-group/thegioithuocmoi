@@ -1,9 +1,24 @@
-export default function Home() {
+import { ArticleSectionBlock } from "@/components/ArticleSectionBlock";
+import { FeaturedNews } from "@/components/FeaturedNews";
+import { PageShell } from "@/components/PageShell";
+import { getHomepageDataFromDb } from "@/data/queries";
+
+export default async function Home() {
+  const data = await getHomepageDataFromDb();
+  if (!data?.featured) {
+    return (
+      <PageShell>
+        <p className="text-[16px] text-[#666666]">Chưa có nội dung trang chủ.</p>
+      </PageShell>
+    );
+  }
+
   return (
-    <main className="flex min-h-screen items-center justify-center">
-      <p className="text-muted-foreground">
-        Clone target not yet built. Run <code className="font-mono text-foreground">/clone-website</code> to start.
-      </p>
-    </main>
+    <PageShell>
+      <FeaturedNews featured={data.featured} secondary={data.secondary} />
+      {data.sections.map((section) => (
+        <ArticleSectionBlock key={section.id} section={section} />
+      ))}
+    </PageShell>
   );
 }
