@@ -2,6 +2,7 @@ import Image from "next/image";
 import { ArticleCard } from "@/components/ArticleCard";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { ClockIcon } from "@/components/icons";
+import { ShareSidebar } from "@/components/ShareSidebar";
 import { highlightGlossaryText } from "@/lib/glossary-highlight";
 import { normalizeArticleHref } from "@/lib/unicode-path";
 import type { ArticleDetail, GlossaryTooltipTerm } from "@/types/content";
@@ -25,7 +26,7 @@ export function ArticleDetailPage({
 
   return (
     <div className="relative mx-auto max-w-[750px]">
-      <ShareSidebar title={article.title} />
+      <ShareSidebar title={article.title} path={articlePath} />
 
       <Breadcrumbs
         items={[
@@ -124,33 +125,5 @@ export function ArticleDetailPage({
         </section>
       )}
     </div>
-  );
-}
-
-function ShareSidebar({ title }: { title: string }) {
-  const encoded = encodeURIComponent(title);
-  const links = [
-    { label: "Share on Facebook", href: "https://www.facebook.com/sharer.php?u=", color: "bg-[#3b5998]", mark: "f" },
-    { label: "Share on Twitter", href: "https://twitter.com/share?url=", color: "bg-[#1da1f2]", mark: "𝕏" },
-    { label: "Email to a Friend", href: `mailto:?subject=${encoded}&body=`, color: "bg-[#222222]", mark: "@" },
-    { label: "Pin on Pinterest", href: "https://pinterest.com/pin/create/button/?url=", color: "bg-[#e60023]", mark: "P" },
-    { label: "Share on LinkedIn", href: "https://www.linkedin.com/shareArticle?mini=true&url=", color: "bg-[#0a66c2]", mark: "in" },
-  ];
-
-  return (
-    <aside className="pointer-events-none absolute top-24 -left-[52px] hidden flex-col gap-2 xl:flex">
-      {links.map((link) => (
-        <a
-          key={link.label}
-          href={link.href}
-          target="_blank"
-          rel="noreferrer"
-          aria-label={link.label}
-          className={`pointer-events-auto flex size-9 items-center justify-center rounded-full text-[12px] font-bold text-white shadow-sm ${link.color}`}
-        >
-          {link.mark}
-        </a>
-      ))}
-    </aside>
   );
 }
