@@ -8,18 +8,17 @@ interface PageProps {
 
 export default async function AdminSidebarPanelPage({ params }: PageProps) {
   const { id } = await params;
-  const { panels, items } = await getAdminSidebarData();
+  const { panels, categories } = await getAdminSidebarData();
   const panel = panels.find((row) => row.id === id);
   if (!panel) notFound();
 
   return (
     <div>
       <h1 className="mb-2 text-[24px] font-bold">{panel.title}</h1>
-      <p className="mb-6 text-[14px] text-[#666]">Sửa panel và các link.</p>
-      <SidebarPanelDetail
-        panel={panel}
-        items={items.filter((item) => item.panel_id === id)}
-      />
+      <p className="mb-6 text-[14px] text-[#666]">
+        Chọn category — link bài lấy random mỗi lần load trang.
+      </p>
+      <SidebarPanelDetail panel={panel} categories={categories} />
     </div>
   );
 }

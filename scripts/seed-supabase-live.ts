@@ -281,23 +281,10 @@ async function main() {
     );
     if (error) throw new Error(`homepage_sections: ${error.message}`);
   }
-  {
-    const rows = articleSections.flatMap((section) =>
-      section.articles.flatMap((article, index) => {
-        const path = toLocalArticleHref(article.href);
-        if (!path.startsWith("/20")) return [];
-        return [{ section_id: section.id, article_path: path, sort_order: index }];
-      }),
-    );
-    const { error } = await supabase.from("homepage_section_articles").insert(rows);
-    if (error) throw new Error(`homepage_section_articles: ${error.message}`);
-  }
 
   console.log("Site settings...");
   {
     const { error } = await supabase.from("site_settings").insert([
-      { key: "featured_article_path", value: toLocalArticleHref(featuredArticle.href) },
-      { key: "secondary_news_paths", value: secondaryNews.map((a) => toLocalArticleHref(a.href)) },
       { key: "logo_src", value: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/images/thegioithuocmoi/TGTM-Final-06-750x254.png` },
       {
         key: "about_us",
@@ -353,25 +340,13 @@ async function main() {
 
   console.log("Sidebar...");
   for (const [index, panel] of sidebarPanels.entries()) {
-    const { data, error } = await supabase
-      .from("sidebar_panels")
-      .insert({
-        title: panel.title,
-        see_all_href: panel.seeAllHref,
-        sort_order: index,
-      })
-      .select("id")
-      .single();
+    const { error } = await supabase.from("sidebar_panels").insert({
+      title: panel.title,
+      see_all_href: panel.seeAllHref,
+      category_slug: panel.categorySlug,
+      sort_order: index,
+    });
     if (error) throw new Error(`sidebar_panels: ${error.message}`);
-    const { error: itemsError } = await supabase.from("sidebar_panel_items").insert(
-      panel.items.map((item, itemIndex) => ({
-        panel_id: data.id,
-        text: item.text,
-        href: item.href,
-        sort_order: itemIndex,
-      })),
-    );
-    if (itemsError) throw new Error(`sidebar_panel_items: ${itemsError.message}`);
   }
 
   console.log("Glossary...");

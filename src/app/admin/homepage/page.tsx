@@ -8,14 +8,10 @@ export default async function AdminHomepagePage() {
     <div>
       <h1 className="mb-2 text-[24px] font-bold">Homepage</h1>
       <p className="mb-6 text-[14px] text-[#666]">
-        Featured / secondary và danh sách section. Sửa section để gắn bài.
+        Featured / Secondary lấy bài mới nhất tự động. Sections gắn category và
+        hiển thị 6 bài mới nhất.
       </p>
-      <HomepageOverview
-        featuredPath={data.featuredPath}
-        secondaryPaths={data.secondaryPaths}
-        sections={data.sections}
-        articles={data.articles}
-      />
+      <HomepageOverview sections={data.sections} categories={data.categories} />
     </div>
   );
 }

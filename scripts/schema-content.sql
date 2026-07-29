@@ -31,12 +31,15 @@ create table if not exists public.articles (
   layout text check (layout is null or layout in ('card', 'wide', 'featured')),
   blocks jsonb not null default '[]'::jsonb,
   is_published boolean not null default true,
+  published_on date,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create index if not exists articles_category_label_idx on public.articles (category_label);
 create index if not exists articles_year_month_day_slug_idx on public.articles (year, month, day, slug);
+create index if not exists articles_published_on_idx
+  on public.articles (is_published, published_on desc nulls last, created_at desc);
 
 create table if not exists public.homepage_sections (
   id text primary key,
@@ -72,6 +75,7 @@ create table if not exists public.sidebar_panels (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   see_all_href text not null,
+  category_slug text references public.categories(slug) on delete set null,
   sort_order integer not null default 0
 );
 
@@ -156,3 +160,48 @@ grant select on public.glossary_tabs to anon, authenticated;
 grant select on public.glossary_entries to anon, authenticated;
 grant select on public.site_settings to anon, authenticated;
 grant select on public.category_articles to anon, authenticated;
+
+-- Random articles for sidebar panels (per request)
+create or replace function public.random_category_articles(
+  p_slug text,
+  p_limit int default 15
+)
+returns table (
+  path text,
+  title text
+)
+language sql
+stable
+as $$
+  select a.path, a.title
+  from public.category_articles ca
+  join public.articles a on a.path = ca.article_path
+  where ca.category_slug = p_slug
+    and a.is_published = true
+  order by random()
+  limit greatest(coalesce(p_limit, 15), 0);
+$$;
+
+revoke all on function public.random_category_articles(text, int) from public;
+grant execute on function public.random_category_articles(text, int) to anon, authenticated;
+
+create or replace function public.latest_category_articles(
+  p_slug text,
+  p_limit int default 6
+)
+returns setof public.articles
+language sql
+stable
+as $$
+  select a.*
+  from public.category_articles ca
+  join public.articles a on a.path = ca.article_path
+  where ca.category_slug = p_slug
+    and a.is_published = true
+  order by a.published_on desc nulls last,
+           a.year desc, a.month desc, a.day desc, a.created_at desc
+  limit greatest(coalesce(p_limit, 6), 0);
+$$;
+
+revoke all on function public.latest_category_articles(text, int) from public;
+grant execute on function public.latest_category_articles(text, int) to anon, authenticated;

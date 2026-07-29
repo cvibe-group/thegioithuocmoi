@@ -64,13 +64,33 @@ export function toDatetimeLabel(year: string, month: string, day: string) {
   return `${toDateLabel(year, month, day)} 12:21 chiều`;
 }
 
+/** ISO date (YYYY-MM-DD) for articles.published_on, or null if invalid. */
+export function toPublishedOn(year: string, month: string, day: string): string | null {
+  if (!/^\d{4}$/.test(year) || !/^\d{1,2}$/.test(month) || !/^\d{1,2}$/.test(day)) {
+    return null;
+  }
+  const y = Number(year);
+  const m = Number(month);
+  const d = Number(day);
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+  const date = new Date(Date.UTC(y, m - 1, d));
+  if (
+    date.getUTCFullYear() !== y ||
+    date.getUTCMonth() !== m - 1 ||
+    date.getUTCDate() !== d
+  ) {
+    return null;
+  }
+  return `${year}-${pad2(m)}-${pad2(d)}`;
+}
+
 export function buildArticlePath(
   year: string,
   month: string,
   day: string,
   slug: string,
 ) {
-  return `/${year}/${month}/${day}/${slug}`;
+  return `/${year}/${month}/${day}/${slug}`.normalize("NFC");
 }
 
 export function categoryHrefFromSlug(slug: string) {

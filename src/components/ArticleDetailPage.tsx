@@ -1,49 +1,28 @@
 import Image from "next/image";
-import Link from "next/link";
-import type { ReactNode } from "react";
 import { ArticleCard } from "@/components/ArticleCard";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { ClockIcon } from "@/components/icons";
-import type { ArticleDetail } from "@/types/content";
+import { highlightGlossaryText } from "@/lib/glossary-highlight";
+import { normalizeArticleHref } from "@/lib/unicode-path";
+import type { ArticleDetail, GlossaryTooltipTerm } from "@/types/content";
 
 interface ArticleDetailPageProps {
   article: ArticleDetail;
+  glossaryTerms?: GlossaryTooltipTerm[];
 }
 
-function highlightTerms(text: string): ReactNode[] {
-  const terms = [
-    "cholesterol",
-    "FDA",
-    "xơ vữa động mạch",
-    "kháng thể đơn dòng",
-    "nghiên cứu lâm sàng",
-    "PCSK9",
-    "LDL-C",
-  ];
-  const pattern = new RegExp(`(${terms.map(escapeRegExp).join("|")})`, "gi");
-  const parts = text.split(pattern);
-  return parts.map((part, index) => {
-    const isTerm = terms.some((t) => t.toLowerCase() === part.toLowerCase());
-    if (isTerm) {
-      return (
-        <Link
-          key={`${part}-${index}`}
-          href="/thuat-ngu"
-          className="font-bold text-brand hover:underline"
-        >
-          {part}
-        </Link>
-      );
-    }
-    return <span key={`${part}-${index}`}>{part}</span>;
-  });
-}
+export function ArticleDetailPage({
+  article,
+  glossaryTerms = [],
+}: ArticleDetailPageProps) {
+  const articlePath = normalizeArticleHref(
+    `/${article.year}/${article.month}/${article.day}/${article.slug}`,
+  );
 
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
+  function highlight(text: string, keyPrefix: string) {
+    return highlightGlossaryText(text, glossaryTerms, keyPrefix, articlePath);
+  }
 
-export function ArticleDetailPage({ article }: ArticleDetailPageProps) {
   return (
     <div className="relative mx-auto max-w-[750px]">
       <ShareSidebar title={article.title} />
@@ -98,17 +77,19 @@ export function ArticleDetailPage({ article }: ArticleDetailPageProps) {
           if (block.type === "list") {
             return (
               <ul key={index} className="list-none space-y-3 pl-0">
-                {block.items?.map((item) => (
-                  <li key={item} className="relative pl-4">
+                {block.items?.map((item, itemIndex) => (
+                  <li key={`${index}-${itemIndex}`} className="relative pl-4">
                     <span className="absolute left-0">•</span>
-                    {highlightTerms(item)}
+                    {highlight(item, `l${index}-${itemIndex}`)}
                   </li>
                 ))}
               </ul>
             );
           }
           return (
-            <p key={index}>{block.text ? highlightTerms(block.text) : null}</p>
+            <p key={index}>
+              {block.text ? highlight(block.text, `p${index}`) : null}
+            </p>
           );
         })}
       </div>

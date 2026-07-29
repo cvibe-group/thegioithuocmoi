@@ -12,13 +12,18 @@ import {
   type AdminPageSize,
   type AdminTableColumn,
 } from "@/lib/admin/pagination";
-import type { AdminSidebarPanel } from "@/lib/admin/structure-queries";
+import type {
+  AdminHomepageCategoryOption,
+  AdminSidebarPanel,
+} from "@/lib/admin/structure-queries";
 import { createAuthBrowserClient } from "@/lib/supabase/browser";
 
 export function SidebarPanelsTable({
   panels: initialPanels,
+  categories,
 }: {
   panels: AdminSidebarPanel[];
+  categories: AdminHomepageCategoryOption[];
 }) {
   const router = useRouter();
   const { confirm, dialog } = useConfirmDialog();
@@ -39,16 +44,25 @@ export function SidebarPanelsTable({
   const rows = sorted.slice(startIndex, endIndex);
 
   async function addPanel() {
+    const first = categories[0];
     const supabase = createAuthBrowserClient();
-    const { data, error: insertError } = await supabase
+    const base = {
+      title: first?.title ?? "Panel mới",
+      see_all_href: first ? `/${first.slug}` : "/",
+      sort_order: panels.length,
+    };
+    let { data, error: insertError } = await supabase
       .from("sidebar_panels")
-      .insert({
-        title: "Panel mới",
-        see_all_href: "/",
-        sort_order: panels.length,
-      })
+      .insert({ ...base, category_slug: first?.slug ?? null })
       .select("*")
       .single();
+    if (insertError?.message?.includes("category_slug")) {
+      ({ data, error: insertError } = await supabase
+        .from("sidebar_panels")
+        .insert(base)
+        .select("*")
+        .single());
+    }
     if (insertError) {
       setError(insertError.message);
       return;
@@ -60,7 +74,7 @@ export function SidebarPanelsTable({
   async function removePanel(panel: AdminSidebarPanel) {
     const ok = await confirm({
       title: "Xóa panel?",
-      description: "Các link trong panel cũng sẽ bị xóa.",
+      description: "Panel sẽ biến mất khỏi sidebar.",
       confirmLabel: "Xóa",
       tone: "danger",
     });
@@ -90,6 +104,11 @@ export function SidebarPanelsTable({
           {panel.title}
         </Link>
       ),
+    },
+    {
+      key: "category",
+      header: "Category",
+      cell: (p) => p.category_slug ?? "—",
     },
     { key: "href", header: "See all", cell: (p) => p.see_all_href },
     { key: "sort", header: "Sort", cell: (p) => p.sort_order },

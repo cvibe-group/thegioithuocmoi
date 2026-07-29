@@ -1,5 +1,10 @@
+import { cache } from "react";
 import { createDataClient, isSupabaseConfigured } from "@/lib/supabase/data";
 import { glossaryLetterFromTitle } from "@/lib/glossary";
+import {
+  articlePathVariants,
+  normalizeArticleHref,
+} from "@/lib/unicode-path";
 import type {
   Article,
   ArticleBlock,
@@ -7,6 +12,7 @@ import type {
   ArticleSection,
   CategoryPageData,
   GlossaryPageData,
+  GlossaryTooltipTerm,
   NavItem,
   SidebarPanel,
 } from "@/types/content";
@@ -38,7 +44,7 @@ function mapArticle(row: ArticleRow, layoutOverride?: string | null): Article {
     date: row.date_label,
     readTime: row.read_time,
     image: row.image ?? undefined,
-    href: row.path,
+    href: normalizeArticleHref(row.path),
     excerpt: row.excerpt ?? undefined,
     author: row.author ?? undefined,
     layout:
@@ -52,12 +58,12 @@ function mapArticle(row: ArticleRow, layoutOverride?: string | null): Article {
 
 function mapDetail(row: ArticleRow, related: Article[] = []): ArticleDetail {
   return {
-    slug: row.slug,
+    slug: row.slug.normalize("NFC"),
     year: row.year,
     month: row.month,
     day: row.day,
     category: row.category_label,
-    categoryHref: row.category_href,
+    categoryHref: normalizeArticleHref(row.category_href),
     title: row.title,
     date: row.date_label,
     datetime: row.datetime_label ?? `${row.date_label} 12:21 chiều`,
@@ -97,24 +103,177 @@ export async function getNavItemsFromDb(): Promise<NavItem[]> {
 export async function getSidebarPanelsFromDb(): Promise<SidebarPanel[]> {
   if (!isSupabaseConfigured()) return [];
   const supabase = createDataClient();
-  const { data: panels } = await supabase
+  let panels: Array<{
+    id: string;
+    title: string;
+    see_all_href: string;
+    category_slug?: string | null;
+    sort_order: number;
+  }> | null = null;
+
+  const withSlug = await supabase
     .from("sidebar_panels")
-    .select("id, title, see_all_href, sort_order")
+    .select("id, title, see_all_href, category_slug, sort_order")
     .order("sort_order");
-  if (!panels) return [];
+  if (!withSlug.error) {
+    panels = withSlug.data;
+  } else {
+    const fallback = await supabase
+      .from("sidebar_panels")
+      .select("id, title, see_all_href, sort_order")
+      .order("sort_order");
+    if (fallback.error || !fallback.data) return [];
+    panels = fallback.data.map((panel) => ({
+      ...panel,
+      category_slug: panel.see_all_href?.startsWith("/")
+        ? panel.see_all_href.slice(1).split("/")[0] || null
+        : null,
+    }));
+  }
+  if (!panels?.length) return [];
 
-  const { data: items } = await supabase
-    .from("sidebar_panel_items")
-    .select("panel_id, text, href, sort_order")
-    .order("sort_order");
+  return Promise.all(
+    panels.map(async (panel) => {
+      const slug =
+        (panel.category_slug as string | null | undefined) ||
+        (panel.see_all_href?.startsWith("/")
+          ? panel.see_all_href.slice(1).split("/")[0] || null
+          : null);
+      if (!slug) {
+        return {
+          title: panel.title,
+          seeAllHref: panel.see_all_href,
+          items: [] as { text: string; href: string }[],
+        };
+      }
 
-  return panels.map((panel) => ({
-    title: panel.title,
-    seeAllHref: panel.see_all_href,
-    items: (items ?? [])
-      .filter((item) => item.panel_id === panel.id)
-      .map((item) => ({ text: item.text, href: item.href })),
-  }));
+      const { data: rpcRows, error: rpcError } = await supabase.rpc(
+        "random_category_articles",
+        { p_slug: slug, p_limit: 15 },
+      );
+
+      let items: { text: string; href: string }[] = [];
+      if (!rpcError && rpcRows) {
+        items = (rpcRows as { path: string; title: string }[]).map((row) => ({
+          text: row.title,
+          href: normalizeArticleHref(row.path),
+        }));
+      } else {
+        // Fallback if RPC missing: sample from category_articles client-side
+        const { data: links } = await supabase
+          .from("category_articles")
+          .select("article_path")
+          .eq("category_slug", slug)
+          .limit(80);
+        const paths = (links ?? []).map((l) => l.article_path as string);
+        for (let i = paths.length - 1; i > 0; i -= 1) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [paths[i], paths[j]] = [paths[j], paths[i]];
+        }
+        const sample = paths.slice(0, 15);
+        if (sample.length) {
+          const { data: articles } = await supabase
+            .from("articles")
+            .select("path, title")
+            .in("path", sample)
+            .eq("is_published", true);
+          const byPath = new Map(
+            (articles ?? []).map((a) => [a.path as string, a.title as string]),
+          );
+          items = sample
+            .map((path) => {
+              const title = byPath.get(path);
+              return title
+                ? { text: title, href: normalizeArticleHref(path) }
+                : null;
+            })
+            .filter(Boolean) as { text: string; href: string }[];
+        }
+      }
+
+      return {
+        title: panel.title,
+        seeAllHref: panel.see_all_href,
+        items,
+      };
+    }),
+  );
+}
+
+async function getLatestArticles(limit: number): Promise<Article[]> {
+  const supabase = createDataClient();
+  const withPublishedOn = await supabase
+    .from("articles")
+    .select("*")
+    .eq("is_published", true)
+    .order("published_on", { ascending: false, nullsFirst: false })
+    .order("year", { ascending: false })
+    .order("month", { ascending: false })
+    .order("day", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (!withPublishedOn.error) {
+    return ((withPublishedOn.data as ArticleRow[] | null) ?? []).map((row) =>
+      mapArticle(row),
+    );
+  }
+
+  const { data, error } = await supabase
+    .from("articles")
+    .select("*")
+    .eq("is_published", true)
+    .order("year", { ascending: false })
+    .order("month", { ascending: false })
+    .order("day", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return ((data as ArticleRow[] | null) ?? []).map((row) => mapArticle(row));
+}
+
+export async function getLatestArticlesByCategory(
+  categorySlug: string,
+  limit: number,
+): Promise<Article[]> {
+  const supabase = createDataClient();
+
+  const { data: rpcRows, error: rpcError } = await supabase.rpc(
+    "latest_category_articles",
+    { p_slug: categorySlug, p_limit: limit },
+  );
+  if (!rpcError && rpcRows) {
+    return ((rpcRows as ArticleRow[]) ?? []).map((row) => mapArticle(row));
+  }
+
+  const { data: links, error: linkError } = await supabase
+    .from("category_articles")
+    .select("article_path")
+    .eq("category_slug", categorySlug);
+  if (linkError) throw new Error(linkError.message);
+  const paths = (links ?? []).map((l) => l.article_path as string);
+  if (!paths.length) return [];
+
+  const articles: ArticleRow[] = [];
+  const chunkSize = 80;
+  for (let i = 0; i < paths.length; i += chunkSize) {
+    const chunk = paths.slice(i, i + chunkSize);
+    const { data: chunkArticles, error: chunkError } = await supabase
+      .from("articles")
+      .select("*")
+      .in("path", chunk)
+      .eq("is_published", true);
+    if (chunkError) throw new Error(chunkError.message);
+    articles.push(...((chunkArticles ?? []) as ArticleRow[]));
+  }
+
+  articles.sort((a, b) => {
+    const key = (row: ArticleRow) =>
+      `${row.year}${row.month}${row.day}${row.path}`;
+    return key(b).localeCompare(key(a));
+  });
+
+  return articles.slice(0, limit).map((row) => mapArticle(row));
 }
 
 export async function getHomepageDataFromDb(): Promise<{
@@ -125,50 +284,26 @@ export async function getHomepageDataFromDb(): Promise<{
   if (!isSupabaseConfigured()) return null;
   const supabase = createDataClient();
 
-  const { data: settings } = await supabase.from("site_settings").select("key, value");
-  const settingMap = new Map((settings ?? []).map((s) => [s.key, s.value]));
+  const [latest, { data: sections, error: sectionsError }] = await Promise.all([
+    getLatestArticles(4),
+    supabase
+      .from("homepage_sections")
+      .select("id, title, see_more_href, sort_order")
+      .order("sort_order"),
+  ]);
+  if (sectionsError) throw new Error(sectionsError.message);
 
-  const featuredPath = settingMap.get("featured_article_path") as string | undefined;
-  const secondaryPaths = (settingMap.get("secondary_news_paths") as string[] | undefined) ?? [];
+  const featured = latest[0] ?? null;
+  const secondary = latest.slice(1, 4);
 
-  const { data: sections } = await supabase
-    .from("homepage_sections")
-    .select("id, title, see_more_href, sort_order")
-    .order("sort_order");
-
-  const { data: sectionLinks } = await supabase
-    .from("homepage_section_articles")
-    .select("section_id, article_path, sort_order")
-    .order("sort_order");
-
-  const paths = [
-    featuredPath,
-    ...secondaryPaths,
-    ...((sectionLinks ?? []).map((l) => l.article_path) as string[]),
-  ].filter(Boolean) as string[];
-
-  const { data: articles } = await supabase.from("articles").select("*").in("path", paths);
-  const articleByPath = new Map((articles as ArticleRow[] | null)?.map((a) => [a.path, a]) ?? []);
-
-  const featured = featuredPath && articleByPath.get(featuredPath)
-    ? mapArticle(articleByPath.get(featuredPath)!)
-    : null;
-
-  const secondary = secondaryPaths
-    .map((path) => articleByPath.get(path))
-    .filter(Boolean)
-    .map((row) => mapArticle(row!));
-
-  const mappedSections: ArticleSection[] = (sections ?? []).map((section) => ({
-    id: section.id,
-    title: section.title,
-    seeMoreHref: section.see_more_href,
-    articles: (sectionLinks ?? [])
-      .filter((link) => link.section_id === section.id)
-      .map((link) => articleByPath.get(link.article_path))
-      .filter(Boolean)
-      .map((row) => mapArticle(row!)),
-  }));
+  const mappedSections: ArticleSection[] = await Promise.all(
+    (sections ?? []).map(async (section) => ({
+      id: section.id,
+      title: section.title,
+      seeMoreHref: section.see_more_href,
+      articles: await getLatestArticlesByCategory(section.id, 6),
+    })),
+  );
 
   return { featured, secondary, sections: mappedSections };
 }
@@ -255,23 +390,34 @@ export async function getArticleDetailFromDb(
 ): Promise<ArticleDetail | null> {
   if (!isSupabaseConfigured()) return null;
   const supabase = createDataClient();
-  const path = `/${year}/${month}/${day}/${slug}`;
+  const variants = articlePathVariants(year, month, day, slug);
 
-  const { data: row } = await supabase
-    .from("articles")
-    .select("*")
-    .eq("path", path)
-    .maybeSingle();
+  let row: ArticleRow | null = null;
+  for (const path of variants) {
+    const { data, error } = await supabase
+      .from("articles")
+      .select("*")
+      .eq("path", path)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (data) {
+      row = data as ArticleRow;
+      break;
+    }
+  }
   if (!row) return null;
 
   const { data: relatedRows } = await supabase
     .from("articles")
     .select("*")
-    .neq("path", path)
+    .neq("path", row.path)
     .eq("is_published", true)
     .limit(3);
 
-  return mapDetail(row as ArticleRow, (relatedRows as ArticleRow[] | null)?.map((r) => mapArticle(r)) ?? []);
+  return mapDetail(
+    row,
+    (relatedRows as ArticleRow[] | null)?.map((r) => mapArticle(r)) ?? [],
+  );
 }
 
 export async function getAllArticleParamsFromDb() {
@@ -281,7 +427,13 @@ export async function getAllArticleParamsFromDb() {
     .from("articles")
     .select("year, month, day, slug")
     .eq("is_published", true);
-  return data ?? [];
+  return (data ?? []).map((row) => ({
+    year: row.year as string,
+    month: row.month as string,
+    day: row.day as string,
+    // Prefer NFC so generated URLs match browser/Next normalization.
+    slug: String(row.slug).normalize("NFC"),
+  }));
 }
 
 export async function getGlossaryPageFromDb(
@@ -351,6 +503,102 @@ export async function getGlossaryPageFromDb(
 
   return { activeTab: tab, sections };
 }
+
+const EXCERPT_MAX = 300;
+
+function excerptFromBlocks(blocks: ArticleBlock[] | null | undefined): string {
+  if (!blocks?.length) return "";
+  for (const block of blocks) {
+    if (block.type === "paragraph" && block.text?.trim()) {
+      const text = block.text.trim();
+      return text.length > EXCERPT_MAX
+        ? `${text.slice(0, EXCERPT_MAX).trimEnd()}…`
+        : text;
+    }
+  }
+  return "";
+}
+
+function normalizeTooltipExcerpt(excerpt: string | null | undefined): string {
+  const raw = (excerpt ?? "").trim();
+  if (!raw) return "";
+  return raw.length > EXCERPT_MAX
+    ? `${raw.slice(0, EXCERPT_MAX).trimEnd()}…`
+    : raw;
+}
+
+/** Glossary terms for article body highlight + tooltip (cached per request/build). */
+export const getGlossaryTooltipTermsFromDb = cache(
+  async (): Promise<GlossaryTooltipTerm[]> => {
+    if (!isSupabaseConfigured()) return [];
+    const supabase = createDataClient();
+
+    const { data: categories, error: catError } = await supabase
+      .from("categories")
+      .select("slug")
+      .eq("kind", "glossary");
+    if (catError) throw new Error(catError.message);
+
+    const slugs = (categories ?? []).map((c) => c.slug as string);
+    if (!slugs.length) return [];
+
+    const paths = new Set<string>();
+    for (let i = 0; i < slugs.length; i += 80) {
+      const chunk = slugs.slice(i, i + 80);
+      const { data: links, error: linkError } = await supabase
+        .from("category_articles")
+        .select("article_path")
+        .in("category_slug", chunk);
+      if (linkError) throw new Error(linkError.message);
+      for (const link of links ?? []) {
+        if (link.article_path) paths.add(link.article_path as string);
+      }
+    }
+
+    const pathList = [...paths];
+    if (!pathList.length) return [];
+
+    type TermRow = {
+      path: string;
+      title: string;
+      excerpt: string | null;
+      blocks: ArticleBlock[] | null;
+      is_published: boolean;
+    };
+
+    const articles: TermRow[] = [];
+    for (let i = 0; i < pathList.length; i += 80) {
+      const chunk = pathList.slice(i, i + 80);
+      const { data, error } = await supabase
+        .from("articles")
+        .select("path, title, excerpt, blocks, is_published")
+        .in("path", chunk)
+        .eq("is_published", true);
+      if (error) throw new Error(error.message);
+      articles.push(...((data ?? []) as TermRow[]));
+    }
+
+    const byKey = new Map<string, GlossaryTooltipTerm>();
+    for (const row of articles) {
+      const term = row.title?.trim();
+      if (!term || !row.path) continue;
+      const key = term.toLocaleLowerCase("vi");
+      if (byKey.has(key)) continue;
+      const excerpt =
+        normalizeTooltipExcerpt(row.excerpt) ||
+        excerptFromBlocks(row.blocks);
+                  byKey.set(key, {
+        term,
+        href: normalizeArticleHref(row.path),
+        excerpt,
+      });
+    }
+
+    return [...byKey.values()].sort(
+      (a, b) => b.term.length - a.term.length || a.term.localeCompare(b.term, "vi"),
+    );
+  },
+);
 
 export async function getAboutUsFromDb() {
   if (!isSupabaseConfigured()) return null;

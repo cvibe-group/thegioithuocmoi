@@ -11,6 +11,7 @@ import {
   DEFAULT_AUTHOR,
   DEFAULT_AUTHOR_BIO,
   buildArticlePath,
+  toPublishedOn,
   categoryHrefFromSlug,
   slugify,
   toDateLabel,
@@ -231,6 +232,7 @@ export function ArticleForm({
         category_href: categoryHrefFromSlug(form.categorySlug),
         date_label: toDateLabel(form.year, form.month, form.day),
         datetime_label: toDatetimeLabel(form.year, form.month, form.day),
+        published_on: toPublishedOn(form.year, form.month, form.day),
         read_time: form.read_time.trim() || "5 phút đọc",
         image: image || null,
         excerpt: form.excerpt.trim() || null,
@@ -242,13 +244,46 @@ export function ArticleForm({
         updated_at: new Date().toISOString(),
       };
 
-      if (mode === "create") {
-        const { data, error: insertError } = await supabase
+      async function persistArticle(
+        mode: "create" | "edit",
+        body: Record<string, unknown>,
+      ): Promise<{ id: string; path: string }> {
+        if (mode === "create") {
+          let { data, error: insertError } = await supabase
+            .from("articles")
+            .insert(body)
+            .select("id, path")
+            .single();
+          if (insertError?.message?.includes("published_on")) {
+            const { published_on: _drop, ...without } = body;
+            ({ data, error: insertError } = await supabase
+              .from("articles")
+              .insert(without)
+              .select("id, path")
+              .single());
+          }
+          if (insertError) throw new Error(insertError.message);
+          if (!data) throw new Error("Không tạo được bài viết");
+          return data;
+        }
+        if (!initial) throw new Error("Thiếu bài viết gốc");
+        let { error: updateError } = await supabase
           .from("articles")
-          .insert(payload)
-          .select("id, path")
-          .single();
-        if (insertError) throw new Error(insertError.message);
+          .update(body)
+          .eq("id", initial.id);
+        if (updateError?.message?.includes("published_on")) {
+          const { published_on: _drop, ...without } = body;
+          ({ error: updateError } = await supabase
+            .from("articles")
+            .update(without)
+            .eq("id", initial.id));
+        }
+        if (updateError) throw new Error(updateError.message);
+        return { id: initial.id, path: initial.path };
+      }
+
+      if (mode === "create") {
+        const data = await persistArticle("create", payload);
 
         await syncCategoryLink({
           newPath: data.path,
@@ -273,13 +308,10 @@ export function ArticleForm({
         day: initial.day,
         date_label: initial.date_label,
         datetime_label: initial.datetime_label,
+        published_on: toPublishedOn(initial.year, initial.month, initial.day),
       };
 
-      const { error: updateError } = await supabase
-        .from("articles")
-        .update(editPayload)
-        .eq("id", initial.id);
-      if (updateError) throw new Error(updateError.message);
+      await persistArticle("edit", editPayload);
 
       await syncCategoryLink({
         oldPath: initial.path,

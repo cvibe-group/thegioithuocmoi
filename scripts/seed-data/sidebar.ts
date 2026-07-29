@@ -1,67 +1,23 @@
-import type { SidebarPanel } from "@/types/content";
+export type SidebarSeedPanel = {
+  title: string;
+  seeAllHref: string;
+  categorySlug: string;
+};
 
-export const sidebarPanels: SidebarPanel[] = [
+export const sidebarPanels: SidebarSeedPanel[] = [
   {
     title: "Bệnh học",
     seeAllHref: "/benh-hoc",
-    items: [
-      { text: "Bệnh ngủ Châu Phi", href: "/benh-hoc" },
-      { text: "Viêm mí mắt do Demodex", href: "/benh-hoc" },
-      { text: "Viêm thực quản bạch cầu ái toan", href: "/benh-hoc" },
-      { text: "Rung nhĩ không do van tim", href: "/benh-hoc" },
-      { text: "Trầm cảm", href: "/benh-hoc" },
-      { text: "Rối loạn tăng sinh hạch bạch huyết", href: "/benh-hoc" },
-      { text: "Chứng giảm ham muốn tình dục", href: "/benh-hoc" },
-      { text: "Bệnh phổi mô kẽ", href: "/benh-hoc" },
-      { text: "Cao oxalate niệu nguyên phát type 1", href: "/benh-hoc" },
-      { text: "Khiếm khuyết tính bám dính của bạch cầu loại I", href: "/benh-hoc" },
-      { text: "U lympho dòng tế bào B lớn", href: "/benh-hoc" },
-      { text: "ICANS", href: "/benh-hoc" },
-      { text: "Bệnh bạch cầu cấp", href: "/benh-hoc" },
-      { text: "Cơn thiếu máu não thoáng qua", href: "/benh-hoc" },
-      { text: "Chứng quá động kém tập trung", href: "/benh-hoc" },
-    ],
+    categorySlug: "benh-hoc",
   },
   {
     title: "Xét nghiệm & Chỉ số",
     seeAllHref: "/xet-nghiem-chi-so",
-    items: [
-      { text: "Cancer antigen 15-3", href: "/xet-nghiem-chi-so" },
-      { text: "Amylase", href: "/xet-nghiem-chi-so" },
-      { text: "Xét nghiệm dung nạp glucose", href: "/xet-nghiem-chi-so" },
-      { text: "Axit uric", href: "/xet-nghiem-chi-so" },
-      { text: "Tốc độ máu lắng", href: "/xet-nghiem-chi-so" },
-      { text: "Điện tâm đồ", href: "/xet-nghiem-chi-so" },
-      { text: "Bạch cầu ái kiềm", href: "/xet-nghiem-chi-so" },
-      { text: "Thyroxine", href: "/xet-nghiem-chi-so" },
-      { text: "Cholesterol lipoprotein mật độ cao", href: "/xet-nghiem-chi-so" },
-      { text: "T3", href: "/xet-nghiem-chi-so" },
-      { text: "Tế bào gốc phôi", href: "/xet-nghiem-chi-so" },
-      { text: "Chụp cắt lớp phát xạ positron", href: "/xet-nghiem-chi-so" },
-      { text: "ctDNA", href: "/xet-nghiem-chi-so" },
-      { text: "Tế bào gốc đa năng nhân tạo", href: "/xet-nghiem-chi-so" },
-      { text: "Cancer antigen 125", href: "/xet-nghiem-chi-so" },
-    ],
+    categorySlug: "xet-nghiem-chi-so",
   },
   {
     title: "Thuật ngữ",
     seeAllHref: "/thuat-ngu",
-    items: [
-      { text: "Liệu pháp gene", href: "/thuat-ngu" },
-      { text: "Anaplastic Lymphoma Kinase", href: "/thuat-ngu" },
-      { text: "STAT", href: "/thuat-ngu" },
-      { text: "RNA aptamer", href: "/thuat-ngu" },
-      { text: "Vitamin D", href: "/thuat-ngu" },
-      { text: "Thụ thể glucagon", href: "/thuat-ngu" },
-      { text: "PARP", href: "/thuat-ngu" },
-      { text: "Phản ứng phụ", href: "/thuat-ngu" },
-      { text: "Granulocyte-colony stimulating factor", href: "/thuat-ngu" },
-      { text: "BRCA1", href: "/thuat-ngu" },
-      { text: "Tế bào thể", href: "/thuat-ngu" },
-      { text: "Ghép tế bào gốc đồng loại", href: "/thuat-ngu" },
-      { text: "Thời gian sống còn toàn bộ", href: "/thuat-ngu" },
-      { text: "Interferon lambda", href: "/thuat-ngu" },
-      { text: "Thụ thể CGRP", href: "/thuat-ngu" },
-    ],
+    categorySlug: "thuat-ngu",
   },
 ];

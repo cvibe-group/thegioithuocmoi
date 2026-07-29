@@ -23,9 +23,11 @@ export type AdminSidebarPanel = {
   id: string;
   title: string;
   see_all_href: string;
+  category_slug: string | null;
   sort_order: number;
 };
 
+/** @deprecated Sidebar items are resolved from category articles at runtime. */
 export type AdminSidebarItem = {
   id: string;
   panel_id: string;
@@ -41,10 +43,9 @@ export type AdminHomepageSection = {
   sort_order: number;
 };
 
-export type AdminHomepageLink = {
-  section_id: string;
-  article_path: string;
-  sort_order: number;
+export type AdminHomepageCategoryOption = {
+  slug: string;
+  title: string;
 };
 
 export type AdminGlossaryTab = {
@@ -74,44 +75,45 @@ export async function getAdminNavData() {
 
 export async function getAdminSidebarData() {
   const supabase = await createAuthServerClient();
-  const [{ data: panels }, { data: items }] = await Promise.all([
+  const [{ data: panels }, { data: categories }] = await Promise.all([
     supabase.from("sidebar_panels").select("*").order("sort_order"),
-    supabase.from("sidebar_panel_items").select("*").order("sort_order"),
+    supabase
+      .from("categories")
+      .select("slug, title")
+      .in("kind", ["archive", "glossary"])
+      .order("sort_order"),
   ]);
   return {
-    panels: (panels ?? []) as AdminSidebarPanel[],
-    items: (items ?? []) as AdminSidebarItem[],
+    panels: (panels ?? []).map((panel) => {
+      const seeAll = panel.see_all_href as string;
+      const fromHref =
+        seeAll?.startsWith("/") ? seeAll.slice(1).split("/")[0] || null : null;
+      return {
+        id: panel.id as string,
+        title: panel.title as string,
+        see_all_href: seeAll,
+        category_slug: (panel.category_slug as string | null) ?? fromHref,
+        sort_order: panel.sort_order as number,
+      };
+    }) as AdminSidebarPanel[],
+    categories: (categories ?? []) as AdminHomepageCategoryOption[],
   };
 }
 
 export async function getAdminHomepageData() {
   const supabase = await createAuthServerClient();
-  const [
-    { data: settings },
-    { data: sections },
-    { data: links },
-    { data: articles },
-  ] = await Promise.all([
-    supabase
-      .from("site_settings")
-      .select("key, value")
-      .in("key", ["featured_article_path", "secondary_news_paths"]),
+  const [{ data: sections }, { data: categories }] = await Promise.all([
     supabase.from("homepage_sections").select("*").order("sort_order"),
-    supabase.from("homepage_section_articles").select("*").order("sort_order"),
     supabase
-      .from("articles")
-      .select("path, title, category_label")
-      .eq("is_published", true)
-      .order("date_label", { ascending: false }),
+      .from("categories")
+      .select("slug, title")
+      .eq("kind", "archive")
+      .order("sort_order"),
   ]);
 
-  const map = new Map((settings ?? []).map((row) => [row.key, row.value]));
   return {
-    featuredPath: (map.get("featured_article_path") as string) || "",
-    secondaryPaths: (map.get("secondary_news_paths") as string[]) || [],
     sections: (sections ?? []) as AdminHomepageSection[],
-    links: (links ?? []) as AdminHomepageLink[],
-    articles: (articles ?? []) as ArticleOption[],
+    categories: (categories ?? []) as AdminHomepageCategoryOption[],
   };
 }
 

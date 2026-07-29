@@ -53,6 +53,13 @@ export interface GlossaryEntry {
   href: string;
 }
 
+/** Term used for in-article highlight + hover tooltip. */
+export type GlossaryTooltipTerm = {
+  term: string;
+  href: string;
+  excerpt: string;
+};
+
 export interface GlossarySection {
   letter: string;
   items: GlossaryEntry[];
