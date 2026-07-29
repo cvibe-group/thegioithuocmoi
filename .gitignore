@@ -5,6 +5,7 @@ node_modules/
 
 # Build
 .next/
+.open-next/
 out/
 build/
 dist/
@@ -12,9 +13,11 @@ dist/
 # Environment
 .env
 .env.local
+.dev.vars
 .env.development.local
 .env.test.local
 .env.production.local
+.wrangler/*
 
 # Debug
 npm-debug.log*

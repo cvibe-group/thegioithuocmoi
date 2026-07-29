@@ -10,7 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
 import { transformPhase2, writePhase2Artifacts } from "./transform";
 
@@ -23,7 +23,7 @@ function hasFlag(flag: string): boolean {
   return process.argv.includes(flag);
 }
 
-async function clearContent(supabase: ReturnType<typeof createClient>) {
+async function clearContent(supabase: SupabaseClient) {
   const tables = [
     "category_articles",
     "homepage_section_articles",
