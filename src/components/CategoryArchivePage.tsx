@@ -3,6 +3,7 @@ import { ArticleWideCard } from "@/components/ArticleWideCard";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { FeaturedNews } from "@/components/FeaturedNews";
 import { Pagination } from "@/components/Pagination";
+import { CATEGORY_CARD_COUNT } from "@/lib/category-pagination";
 import type { Article, CategoryPageData } from "@/types/content";
 
 interface CategoryArchivePageProps {
@@ -10,52 +11,17 @@ interface CategoryArchivePageProps {
   baseHref: string;
 }
 
-/**
- * Original pattern: featured (image+text) → row of 3 text-only → wide cards
- * with excerpt, interleaved with more text-only rows.
- */
-function layoutArchiveArticles(articles: Article[]) {
-  const [featured, ...rest] = articles;
-  const textRows: Article[][] = [];
-  const wideCards: Article[] = [];
-
-  let buffer: Article[] = [];
-  for (const article of rest) {
-    if (article.layout === "wide") {
-      if (buffer.length) {
-        textRows.push(buffer);
-        buffer = [];
-      }
-      wideCards.push(article);
-    } else {
-      buffer.push(article);
-      if (buffer.length === 3) {
-        textRows.push(buffer);
-        buffer = [];
-      }
-    }
-  }
-  if (buffer.length) textRows.push(buffer);
-
-  return { featured, textRows, wideCards };
+/** Fixed per-page layout: 1 featured → 3 text cards → remaining wide cards. */
+function layoutCategoryPage(articles: Article[]) {
+  return {
+    featured: articles[0] ?? null,
+    cards: articles.slice(1, 1 + CATEGORY_CARD_COUNT),
+    wides: articles.slice(1 + CATEGORY_CARD_COUNT),
+  };
 }
 
 export function CategoryArchivePage({ data, baseHref }: CategoryArchivePageProps) {
-  const { featured, textRows, wideCards } = layoutArchiveArticles(data.articles);
-
-  // Interleave: first text row, then first wide, then remaining text rows + wides
-  const blocks: Array<{ type: "text"; items: Article[] } | { type: "wide"; item: Article }> = [];
-  const textQueue = [...textRows];
-  const wideQueue = [...wideCards];
-
-  while (textQueue.length || wideQueue.length) {
-    if (textQueue.length) {
-      blocks.push({ type: "text", items: textQueue.shift()! });
-    }
-    if (wideQueue.length) {
-      blocks.push({ type: "wide", item: wideQueue.shift()! });
-    }
-  }
+  const { featured, cards, wides } = layoutCategoryPage(data.articles);
 
   return (
     <div>
@@ -66,17 +32,17 @@ export function CategoryArchivePage({ data, baseHref }: CategoryArchivePageProps
 
       {featured && <FeaturedNews featured={featured} secondary={[]} />}
 
-      {blocks.map((block, index) =>
-        block.type === "text" ? (
-          <div key={`text-${index}`} className="mb-2 grid gap-x-[30px] md:grid-cols-3">
-            {block.items.map((article) => (
-              <ArticleTextCard key={article.title} article={article} />
-            ))}
-          </div>
-        ) : (
-          <ArticleWideCard key={block.item.title} article={block.item} />
-        ),
+      {cards.length > 0 && (
+        <div className="mb-2 grid gap-x-[30px] md:grid-cols-3">
+          {cards.map((article) => (
+            <ArticleTextCard key={article.href} article={article} />
+          ))}
+        </div>
       )}
+
+      {wides.map((article) => (
+        <ArticleWideCard key={article.href} article={article} />
+      ))}
 
       {data.totalPages > 1 && (
         <Pagination

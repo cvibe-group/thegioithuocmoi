@@ -14,6 +14,7 @@ import type {
   CategoryArticleLink,
 } from "@/lib/admin/category-queries";
 import type { AdminTableColumn } from "@/lib/admin/pagination";
+import { categoryTotalPages } from "@/lib/category-pagination";
 import { createAuthBrowserClient } from "@/lib/supabase/browser";
 
 export function CategoryForm({
@@ -44,7 +45,6 @@ export function CategoryForm({
     initial?.parent_slug ?? createParents[0]?.slug ?? "thuoc",
   );
   const [title, setTitle] = useState(initial?.title ?? "");
-  const [totalPages, setTotalPages] = useState(initial?.total_pages ?? 1);
   const [sortOrder, setSortOrder] = useState(initial?.sort_order ?? 0);
   const [addToMenu, setAddToMenu] = useState(true);
   const [addHomepageSection, setAddHomepageSection] = useState(false);
@@ -59,6 +59,9 @@ export function CategoryForm({
         : parentSlug && slugify(title)
           ? `${parentSlug}/${slugify(title)}`
           : "";
+
+  const linkedArticleCount = initial?.article_count ?? articlesTotal ?? 0;
+  const computedTotalPages = categoryTotalPages(linkedArticleCount);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -82,7 +85,7 @@ export function CategoryForm({
           title: trimmed,
           kind,
           parent_slug: kind === "subcategory" ? parentSlug : null,
-          total_pages: Math.max(1, Math.floor(totalPages)),
+          total_pages: 1,
           sort_order: Math.floor(sortOrder),
         });
         if (insertError) throw new Error(insertError.message);
@@ -177,7 +180,7 @@ export function CategoryForm({
         .from("categories")
         .update({
           title: trimmed,
-          total_pages: Math.max(1, Math.floor(totalPages)),
+          total_pages: computedTotalPages,
           sort_order: Math.floor(sortOrder),
         })
         .eq("slug", initial.slug);
@@ -353,18 +356,19 @@ export function CategoryForm({
         </label>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="block">
-            <span className="mb-1 block text-[13px] font-medium text-[#666]">
-              Total pages
-            </span>
-            <input
-              type="number"
-              min={1}
-              value={totalPages}
-              onChange={(e) => setTotalPages(Number(e.target.value))}
-              className="w-full rounded border border-border-light px-3 py-2 text-[13px]"
-            />
-          </label>
+          {mode === "edit" ? (
+            <div className="block">
+              <span className="mb-1 block text-[13px] font-medium text-[#666]">
+                Total pages (tự tính, 15 bài/trang)
+              </span>
+              <p className="rounded border border-border-light bg-[#fafafa] px-3 py-2 text-[13px] text-[#333]">
+                {computedTotalPages}{" "}
+                <span className="text-[#666]">
+                  ({linkedArticleCount} bài đã gắn)
+                </span>
+              </p>
+            </div>
+          ) : null}
           <label className="block">
             <span className="mb-1 block text-[13px] font-medium text-[#666]">
               Sort order

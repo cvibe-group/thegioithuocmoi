@@ -2,6 +2,10 @@
 export const LOGO_SRC =
   "https://iweejgtuyzdmdjdjmxiq.supabase.co/storage/v1/object/public/images/thegioithuocmoi/TGTM-Final-06-750x254.png";
 
+/** Fallback when an article has no featured image (local logo asset). */
+export const ARTICLE_PLACEHOLDER_IMAGE =
+  "/images/thegioithuocmoi/TGTM-Final-06-750x254.png";
+
 export const STORAGE_IMAGE_BASE =
   "https://iweejgtuyzdmdjdjmxiq.supabase.co/storage/v1/object/public/images/thegioithuocmoi";
 

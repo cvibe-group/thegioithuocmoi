@@ -4,6 +4,10 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { ClockIcon } from "@/components/icons";
 import { ShareSidebar } from "@/components/ShareSidebar";
 import { highlightGlossaryText } from "@/lib/glossary-highlight";
+import {
+  isArticlePlaceholderImage,
+  resolveArticleImage,
+} from "@/lib/article-image";
 import { normalizeArticleHref } from "@/lib/unicode-path";
 import type { ArticleDetail, GlossaryTooltipTerm } from "@/types/content";
 
@@ -23,6 +27,9 @@ export function ArticleDetailPage({
   function highlight(text: string, keyPrefix: string) {
     return highlightGlossaryText(text, glossaryTerms, keyPrefix, articlePath);
   }
+
+  const heroImage = resolveArticleImage(article.image);
+  const heroIsPlaceholder = isArticlePlaceholderImage(article.image);
 
   return (
     <div className="relative mx-auto max-w-[750px]">
@@ -48,18 +55,16 @@ export function ArticleDetailPage({
         {article.datetime}
       </p>
 
-      {article.image && (
-        <div className="relative mb-4 aspect-[16/10] w-full overflow-hidden bg-[#f5f0fa]">
-          <Image
-            src={article.image}
-            alt=""
-            fill
-            className="object-cover"
-            sizes="750px"
-            priority
-          />
-        </div>
-      )}
+      <div className="relative mb-4 aspect-[16/10] w-full overflow-hidden bg-[#f5f0fa]">
+        <Image
+          src={heroImage}
+          alt=""
+          fill
+          className={heroIsPlaceholder ? "object-contain p-8" : "object-cover"}
+          sizes="750px"
+          priority
+        />
+      </div>
 
       <p className="mb-6 text-right text-[14px] text-[#666666]">{article.author}</p>
 

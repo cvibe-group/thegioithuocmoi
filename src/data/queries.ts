@@ -1,5 +1,9 @@
 import { cache } from "react";
 import { createDataClient, isSupabaseConfigured } from "@/lib/supabase/data";
+import {
+  CATEGORY_ARTICLES_PER_PAGE,
+  categoryTotalPages,
+} from "@/lib/category-pagination";
 import { glossaryLetterFromTitle } from "@/lib/glossary";
 import {
   articlePathVariants,
@@ -35,6 +39,7 @@ type ArticleRow = {
   author_bio: string | null;
   layout: "card" | "wide" | null;
   blocks: ArticleBlock[] | null;
+  is_published: boolean;
 };
 
 function mapArticle(row: ArticleRow, layoutOverride?: string | null): Article {
@@ -308,9 +313,13 @@ export async function getHomepageDataFromDb(): Promise<{
   return { featured, secondary, sections: mappedSections };
 }
 
-export async function getCategoryPageFromDb(slug: string): Promise<CategoryPageData | null> {
+export async function getCategoryPageFromDb(
+  slug: string,
+  options?: { page?: number },
+): Promise<CategoryPageData | null> {
   if (!isSupabaseConfigured()) return null;
   const supabase = createDataClient();
+  const requestedPage = Math.max(1, options?.page ?? 1);
 
   const { data: category } = await supabase
     .from("categories")
@@ -347,9 +356,15 @@ export async function getCategoryPageFromDb(slug: string): Promise<CategoryPageD
   const mapped = (links ?? [])
     .map((link) => {
       const row = articleByPath.get(link.article_path);
-      return row ? mapArticle(row, link.layout) : null;
+      if (!row?.is_published) return null;
+      return mapArticle(row, link.layout);
     })
     .filter(Boolean) as Article[];
+
+  const totalPages = categoryTotalPages(mapped.length);
+  const safePage = Math.min(requestedPage, totalPages);
+  const start = (safePage - 1) * CATEGORY_ARTICLES_PER_PAGE;
+  const pageArticles = mapped.slice(start, start + CATEGORY_ARTICLES_PER_PAGE);
 
   let parentTitle = "";
   if (category.parent_slug && category.kind === "subcategory") {
@@ -376,9 +391,9 @@ export async function getCategoryPageFromDb(slug: string): Promise<CategoryPageD
   return {
     title: category.title,
     breadcrumbs,
-    articles: mapped,
-    totalPages: category.total_pages,
-    currentPage: 1,
+    articles: pageArticles,
+    totalPages,
+    currentPage: safePage,
   };
 }
 

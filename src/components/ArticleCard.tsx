@@ -1,5 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
+import {
+  isArticlePlaceholderImage,
+  resolveArticleImage,
+} from "@/lib/article-image";
 import type { Article } from "@/types/content";
 
 export function CategoryLabel({ children }: { children: string }) {
@@ -26,19 +30,27 @@ export function ArticleMeta({ date, readTime }: { date: string; readTime?: strin
 
 /** Vertical card used in Thuốc / Vaccine / etc. grids */
 export function ArticleCard({ article }: { article: Article }) {
+  const imageSrc = resolveArticleImage(article.image);
+  const isPlaceholder = isArticlePlaceholderImage(article.image);
+
   return (
     <article className="mb-[30px]">
-      {article.image && (
-        <Link href={article.href} className="relative mb-2 block aspect-[250/141] w-full overflow-hidden bg-[#f5f0fa]">
-          <Image
-            src={article.image}
-            alt=""
-            fill
-            className="object-cover transition-opacity hover:opacity-90"
-            sizes="(max-width: 768px) 100vw, 250px"
-          />
-        </Link>
-      )}
+      <Link
+        href={article.href}
+        className="relative mb-2 block aspect-[250/141] w-full overflow-hidden bg-[#f5f0fa]"
+      >
+        <Image
+          src={imageSrc}
+          alt=""
+          fill
+          className={
+            isPlaceholder
+              ? "object-contain p-4"
+              : "object-cover transition-opacity hover:opacity-90"
+          }
+          sizes="(max-width: 768px) 100vw, 250px"
+        />
+      </Link>
       <CategoryLabel>{article.category}</CategoryLabel>
       <Link href={article.href} className="group block">
         <h5 className="my-[1.8px] py-[5px] text-[18px] font-bold leading-[1.3] text-brand transition-opacity group-hover:opacity-80">

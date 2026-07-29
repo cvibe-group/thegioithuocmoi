@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { CategoryArchivePage } from "@/components/CategoryArchivePage";
 import { GlossaryIndexPage } from "@/components/GlossaryIndexPage";
 import { PageShell } from "@/components/PageShell";
@@ -10,9 +10,11 @@ import {
   getGlossaryTabsFromDb,
   getTopLevelCategoryParamsFromDb,
 } from "@/data/queries";
+import { parseCategoryPage } from "@/lib/category-pagination";
 
 interface PageProps {
   params: Promise<{ year: string }>;
+  searchParams: Promise<{ page?: string }>;
 }
 
 export async function generateStaticParams() {
@@ -48,8 +50,11 @@ export async function generateMetadata({
 
 export default async function DynamicTopLevelCategoryPage({
   params,
+  searchParams,
 }: PageProps) {
   const { year } = await params;
+  const { page: pageRaw } = await searchParams;
+  const page = parseCategoryPage(pageRaw);
   // Tránh /2024 bị hiểu nhầm thành archive khi không có category.
   if (/^\d{4}$/.test(year)) notFound();
 
@@ -70,8 +75,14 @@ export default async function DynamicTopLevelCategoryPage({
 
   if (kind !== "archive") notFound();
 
-  const data = await getCategoryPageFromDb(year);
+  const data = await getCategoryPageFromDb(year, { page });
   if (!data) notFound();
+
+  if (page > data.totalPages) {
+    redirect(
+      data.totalPages > 1 ? `/${year}?page=${data.totalPages}` : `/${year}`,
+    );
+  }
 
   return (
     <PageShell>

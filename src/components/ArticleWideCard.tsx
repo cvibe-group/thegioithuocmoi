@@ -1,25 +1,30 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArticleMeta, CategoryLabel } from "@/components/ArticleCard";
+import {
+  isArticlePlaceholderImage,
+  resolveArticleImage,
+} from "@/lib/article-image";
 import type { Article } from "@/types/content";
 
 export function ArticleWideCard({ article }: { article: Article }) {
+  const imageSrc = resolveArticleImage(article.image);
+  const isPlaceholder = isArticlePlaceholderImage(article.image);
+
   return (
     <article className="mb-[30px] flex flex-col md:flex-row">
-      {article.image && (
-        <Link
-          href={article.href}
-          className="relative block aspect-[405/228] w-full shrink-0 overflow-hidden md:w-1/2"
-        >
-          <Image
-            src={article.image}
-            alt=""
-            fill
-            className="object-cover"
-            sizes="(max-width: 768px) 100vw, 405px"
-          />
-        </Link>
-      )}
+      <Link
+        href={article.href}
+        className="relative block aspect-[405/228] w-full shrink-0 overflow-hidden bg-[#f5f0fa] md:w-1/2"
+      >
+        <Image
+          src={imageSrc}
+          alt=""
+          fill
+          className={isPlaceholder ? "object-contain p-6" : "object-cover"}
+          sizes="(max-width: 768px) 100vw, 405px"
+        />
+      </Link>
       <div className="flex w-full flex-col justify-center bg-[rgba(184,9,177,0.05)] px-[21.6px] pb-4 pt-[10px] md:w-1/2">
         <CategoryLabel>{article.category}</CategoryLabel>
         {article.author && (

@@ -1,6 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArticleMeta, CategoryLabel } from "@/components/ArticleCard";
+import {
+  isArticlePlaceholderImage,
+  resolveArticleImage,
+} from "@/lib/article-image";
 import type { Article } from "@/types/content";
 
 interface FeaturedNewsProps {
@@ -9,25 +13,30 @@ interface FeaturedNewsProps {
 }
 
 export function FeaturedNews({ featured, secondary }: FeaturedNewsProps) {
+  const featuredImage = resolveArticleImage(featured.image);
+  const featuredIsPlaceholder = isArticlePlaceholderImage(featured.image);
+
   return (
     <section className="mb-2">
       {/* Featured: 50/50 image + text, table-like */}
       <div className="mb-[30px] flex flex-col md:flex-row">
-        {featured.image && (
-          <Link
-            href={featured.href}
-            className="relative block aspect-[405/228] w-full shrink-0 overflow-hidden md:w-1/2"
-          >
-            <Image
-              src={featured.image}
-              alt=""
-              fill
-              className="object-cover object-[center_20%]"
-              sizes="(max-width: 768px) 100vw, 405px"
-              priority
-            />
-          </Link>
-        )}
+        <Link
+          href={featured.href}
+          className="relative block aspect-[405/228] w-full shrink-0 overflow-hidden bg-[#f5f0fa] md:w-1/2"
+        >
+          <Image
+            src={featuredImage}
+            alt=""
+            fill
+            className={
+              featuredIsPlaceholder
+                ? "object-contain p-6"
+                : "object-cover object-[center_20%]"
+            }
+            sizes="(max-width: 768px) 100vw, 405px"
+            priority
+          />
+        </Link>
         <div className="flex w-full flex-col justify-center bg-[rgba(184,9,177,0.05)] px-[21.6px] pb-4 pt-[10px] md:w-1/2">
           <CategoryLabel>{featured.category}</CategoryLabel>
           <Link href={featured.href} className="group block">
