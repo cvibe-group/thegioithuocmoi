@@ -4,6 +4,9 @@ import { BrandingStyle } from "@/components/BrandingStyle";
 import { getBrandingFromDb } from "@/data/queries";
 import "./globals.css";
 
+/** CMS content (sidebar, nav, homepage) — refresh on Vercel without full redeploy. */
+export const revalidate = 60;
+
 const openSans = Open_Sans({
   variable: "--font-open-sans",
   subsets: ["latin", "vietnamese"],
