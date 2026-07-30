@@ -7,7 +7,8 @@ import { useConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { AdminDataTable } from "@/components/admin/AdminDataTable";
 import { AdminPagination } from "@/components/admin/AdminPagination";
 import { useAdminPagination } from "@/hooks/useAdminPagination";
-import type { AdminArticle } from "@/lib/admin/articles";
+import type { AdminArticle, CategoryOption } from "@/lib/admin/articles";
+import { groupCategoryOptions } from "@/lib/admin/articles";
 import type { AdminTableColumn } from "@/lib/admin/pagination";
 import { createAuthBrowserClient } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
@@ -15,14 +16,26 @@ import { cn } from "@/lib/utils";
 export function ArticlesTable({
   articles,
   total,
+  categories,
 }: {
   articles: AdminArticle[];
   total: number;
+  categories: CategoryOption[];
 }) {
   const router = useRouter();
   const { confirm, dialog } = useConfirmDialog();
-  const { page, pageSize, q, status, setPage, setPageSize, setFilter, setParams } =
-    useAdminPagination();
+  const {
+    page,
+    pageSize,
+    q,
+    status,
+    setPage,
+    setPageSize,
+    setFilter,
+    setParams,
+    searchParams,
+  } = useAdminPagination();
+  const category = searchParams.get("category") ?? "all";
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [draftQ, setDraftQ] = useState(q);
@@ -184,6 +197,46 @@ export function ArticlesTable({
             placeholder="Tiêu đề, chuyên mục, slug..."
             className="w-full rounded border border-[#d9d9d9] px-3 py-2 text-[14px] outline-none focus:border-brand"
           />
+        </label>
+        <label>
+          <span className="mb-1 block text-[12px] font-medium text-[#666]">
+            Chuyên mục
+          </span>
+          <select
+            value={
+              categories.some((item) => item.slug === category) ? category : "all"
+            }
+            onChange={(event) =>
+              setFilter(
+                "category",
+                event.target.value === "all" ? null : event.target.value,
+              )
+            }
+            className="max-w-[280px] rounded border border-[#d9d9d9] px-3 py-2 text-[14px] outline-none focus:border-brand"
+          >
+            <option value="all">Tất cả</option>
+            {groupCategoryOptions(categories).map(({ root, children }) => (
+              <optgroup
+                key={root.slug}
+                label={
+                  root.kind === "glossary"
+                    ? `[Glossary] ${root.title}`
+                    : root.title
+                }
+              >
+                <option value={root.slug}>
+                  {root.kind === "glossary"
+                    ? root.title
+                    : `${root.title} (chung)`}
+                </option>
+                {children.map((child) => (
+                  <option key={child.slug} value={child.slug}>
+                    {child.title}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
         </label>
         <label>
           <span className="mb-1 block text-[12px] font-medium text-[#666]">

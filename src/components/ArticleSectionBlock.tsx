@@ -9,11 +9,13 @@ interface ArticleSectionBlockProps {
 export function ArticleSectionBlock({ section }: ArticleSectionBlockProps) {
   return (
     <section className="mb-8" id={section.id}>
-      <h2 className="mb-4 flex items-center justify-between gap-3 text-[32px] font-bold leading-[1.3]">
-        <span className="text-brand">{section.title}</span>
+      <h2 className="mb-4 flex items-center justify-between gap-3 border-t-2 border-[#ebbee7] text-[32px] font-bold leading-[1.3]">
+        <span className="-mt-0.5 mr-[15px] block border-t-4 border-brand pt-2.5 pb-[7.5px] text-brand">
+          {section.title}
+        </span>
         <Link
           href={section.seeMoreHref}
-          className="shrink-0 text-[15px] font-normal text-brand transition-opacity hover:opacity-80"
+          className="shrink-0 text-[15px] font-bold text-brand transition-opacity hover:opacity-80"
         >
           Xem thêm
         </Link>

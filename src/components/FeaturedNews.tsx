@@ -52,7 +52,10 @@ export function FeaturedNews({ featured, secondary }: FeaturedNewsProps) {
       {secondary.length > 0 && (
         <div className="mb-6 grid gap-x-[30px] md:grid-cols-3">
           {secondary.map((article) => (
-          <article key={article.title} className="mb-[30px]">
+          <article
+            key={article.title}
+            className="mb-[30px] border-t border-[#ebbee7] pt-[10px]"
+          >
             <CategoryLabel>{article.category}</CategoryLabel>
             <Link href={article.href} className="group block">
               <h5 className="my-[1.8px] py-[5px] text-[18px] font-bold leading-[1.3] text-brand transition-opacity group-hover:opacity-80">

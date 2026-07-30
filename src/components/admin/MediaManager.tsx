@@ -8,6 +8,7 @@ import { Folder, ChevronRight, FolderPlus, Trash2 } from "lucide-react";
 import { AdminDataTable } from "@/components/admin/AdminDataTable";
 import { AdminPagination } from "@/components/admin/AdminPagination";
 import { useConfirmDialog } from "@/components/admin/ConfirmDialog";
+import { ImageUploadField } from "@/components/admin/ImageUploadField";
 import { createAuthBrowserClient } from "@/lib/supabase/browser";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -97,6 +98,7 @@ export function MediaManager({
   const [deleting, setDeleting] = useState<string | null>(null);
   const [folderName, setFolderName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [copiedName, setCopiedName] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<AdminPageSize>(ADMIN_DEFAULT_PAGE_SIZE);
 
@@ -122,29 +124,30 @@ export function MediaManager({
     };
   }, [files, page, pageSize]);
 
-  async function onUpload(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const input = form.elements.namedItem("file") as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
+  async function uploadFiles(fileList: File[]) {
+    if (fileList.length === 0) return;
 
     setUploading(true);
     setError(null);
     try {
       const supabase = createAuthBrowserClient();
-      const objectPath = `${currentPath}/${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(objectPath, file, { upsert: true, contentType: file.type });
-      if (uploadError) throw new Error(uploadError.message);
+      const uploaded: MediaFile[] = [];
 
-      const { data } = supabase.storage.from(bucket).getPublicUrl(objectPath);
+      for (const file of fileList) {
+        const objectPath = `${currentPath}/${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from(bucket)
+          .upload(objectPath, file, { upsert: true, contentType: file.type });
+        if (uploadError) throw new Error(uploadError.message);
+
+        const { data } = supabase.storage.from(bucket).getPublicUrl(objectPath);
+        uploaded.push({ name: file.name, url: data.publicUrl });
+      }
+
       setFiles((prev) => {
-        const next = prev.filter((item) => item.name !== file.name);
-        return [{ name: file.name, url: data.publicUrl }, ...next];
+        const names = new Set(uploaded.map((item) => item.name));
+        return [...uploaded, ...prev.filter((item) => !names.has(item.name))];
       });
-      form.reset();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload thất bại");
@@ -185,6 +188,18 @@ export function MediaManager({
       setError(err instanceof Error ? err.message : "Tạo folder thất bại");
     } finally {
       setCreatingFolder(false);
+    }
+  }
+
+  async function onCopyUrl(file: MediaFile) {
+    try {
+      await navigator.clipboard.writeText(file.url);
+      setCopiedName(file.name);
+      window.setTimeout(() => {
+        setCopiedName((current) => (current === file.name ? null : current));
+      }, 1600);
+    } catch {
+      setError("Không copy được URL — hãy mở URL và copy thủ công.");
     }
   }
 
@@ -280,32 +295,33 @@ export function MediaManager({
       </nav>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <form
-          onSubmit={onUpload}
-          className="flex flex-wrap items-end gap-3 rounded-lg border border-border-light bg-white p-4"
-        >
-          <label className="block min-w-[200px] flex-1">
-            <span className="mb-1 block text-[13px] font-medium">
-              Upload vào <code>{currentPath}</code>
-            </span>
-            <input type="file" name="file" accept="image/*" required className="text-[13px]" />
-          </label>
-          <button
-            type="submit"
-            disabled={busy}
-            className="rounded bg-brand px-4 py-2 text-[14px] font-bold text-white disabled:opacity-60"
-          >
-            {uploading ? "Đang upload..." : "Upload"}
-          </button>
-          {currentPath !== root ? (
-            <Link
-              href={`/admin/media?path=${encodeURIComponent(root)}`}
-              className="rounded border border-border-light px-3 py-2 text-[13px]"
-            >
-              Về root
-            </Link>
-          ) : null}
-        </form>
+        <div className="rounded-lg border border-border-light bg-white p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-[13px] font-bold">Upload ảnh</p>
+              <p className="text-[12px] text-[#888]">
+                Vào <code className="text-[11px]">{currentPath}</code>
+              </p>
+            </div>
+            {currentPath !== root ? (
+              <Link
+                href={`/admin/media?path=${encodeURIComponent(root)}`}
+                className="rounded border border-border-light px-3 py-1.5 text-[12px] hover:border-brand hover:text-brand"
+              >
+                Về root
+              </Link>
+            ) : null}
+          </div>
+          <ImageUploadField
+            multiple
+            uploading={uploading}
+            disabled={busy && !uploading}
+            hint="PNG, JPG, WEBP, GIF · upload ngay khi chọn"
+            onFilesChange={(files) => {
+              void uploadFiles(files);
+            }}
+          />
+        </div>
 
         <form
           onSubmit={onCreateFolder}
@@ -418,6 +434,7 @@ export function MediaManager({
                 header: "Thao tác",
                 cell: (file) => {
                   const isDeleting = deleting === `file:${file.name}`;
+                  const isCopied = copiedName === file.name;
                   return (
                     <div className="flex flex-wrap gap-2">
                       <a
@@ -428,6 +445,13 @@ export function MediaManager({
                       >
                         Mở URL
                       </a>
+                      <button
+                        type="button"
+                        onClick={() => onCopyUrl(file)}
+                        className="text-brand hover:underline"
+                      >
+                        {isCopied ? "Đã copy" : "Copy URL"}
+                      </button>
                       <button
                         type="button"
                         disabled={busy}

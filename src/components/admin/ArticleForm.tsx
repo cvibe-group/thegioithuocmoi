@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -13,11 +12,13 @@ import {
   buildArticlePath,
   toPublishedOn,
   categoryHrefFromSlug,
+  groupCategoryOptions,
   slugify,
   toDateLabel,
   toDatetimeLabel,
   todayParts,
 } from "@/lib/admin/articles";
+import { ImageUploadField } from "@/components/admin/ImageUploadField";
 import { createAuthBrowserClient } from "@/lib/supabase/browser";
 
 type FormState = {
@@ -544,14 +545,26 @@ export function ArticleForm({
                 }
                 className="w-full rounded border border-[#d9d9d9] px-3 py-2 text-[14px] outline-none focus:border-brand"
               >
-                {categories.map((category) => (
-                  <option key={category.slug} value={category.slug}>
-                    {category.kind === "glossary"
-                      ? `[Glossary] ${category.title}`
-                      : category.kind === "subcategory"
-                        ? `— ${category.title}`
-                        : category.title}
-                  </option>
+                {groupCategoryOptions(categories).map(({ root, children }) => (
+                  <optgroup
+                    key={root.slug}
+                    label={
+                      root.kind === "glossary"
+                        ? `[Glossary] ${root.title}`
+                        : root.title
+                    }
+                  >
+                    <option value={root.slug}>
+                      {root.kind === "glossary"
+                        ? root.title
+                        : `${root.title} (chung)`}
+                    </option>
+                    {children.map((child) => (
+                      <option key={child.slug} value={child.slug}>
+                        {child.title}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </label>
@@ -624,26 +637,21 @@ export function ArticleForm({
 
           <div className="space-y-3 rounded-lg border border-border-light bg-white p-4">
             <p className="text-[13px] font-bold">Ảnh bài viết</p>
-            {(imageFile || form.image) && (
-              <div className="relative aspect-[4/3] overflow-hidden rounded border border-border-light bg-brand-light">
-                <Image
-                  src={imageFile ? URL.createObjectURL(imageFile) : form.image}
-                  alt=""
-                  fill
-                  className="object-cover"
-                  unoptimized
-                />
-              </div>
-            )}
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(event) => setImageFile(event.target.files?.[0] ?? null)}
-              className="block w-full text-[12px]"
+            <ImageUploadField
+              selectedFile={imageFile}
+              previewUrl={form.image || null}
+              previewAlt={form.title || "Ảnh bài viết"}
+              onFileChange={setImageFile}
+              onClear={() => {
+                setImageFile(null);
+                setForm((prev) => ({ ...prev, image: "" }));
+              }}
             />
             <input
               value={form.image}
-              onChange={(event) => setForm((prev) => ({ ...prev, image: event.target.value }))}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, image: event.target.value }))
+              }
               placeholder="Hoặc dán URL ảnh"
               className="w-full rounded border border-[#d9d9d9] px-3 py-2 text-[12px] outline-none focus:border-brand"
             />

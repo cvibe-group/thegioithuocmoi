@@ -32,10 +32,7 @@ export async function PageShell({
         {withSidebar && !fullWidth ? (
           <div className="grid gap-[30px] lg:grid-cols-[minmax(0,1fr)_238px]">
             <div className="min-w-0">{children}</div>
-            <SidebarPanels
-              panels={sidebarPanels}
-              className="lg:sticky lg:top-[90px] lg:self-start"
-            />
+            <SidebarPanels panels={sidebarPanels} />
           </div>
         ) : (
           children

@@ -27,11 +27,48 @@ export type CategoryOption = {
   slug: string;
   title: string;
   kind: string;
+  parent_slug: string | null;
 };
+
+export type CategoryOptionGroup = {
+  root: CategoryOption;
+  children: CategoryOption[];
+};
+
+/** Group archives/glossaries with their subcategories for select UIs. */
+export function groupCategoryOptions(
+  categories: CategoryOption[],
+): CategoryOptionGroup[] {
+  const childrenByParent = new Map<string, CategoryOption[]>();
+  for (const category of categories) {
+    if (category.kind !== "subcategory" || !category.parent_slug) continue;
+    const list = childrenByParent.get(category.parent_slug) ?? [];
+    list.push(category);
+    childrenByParent.set(category.parent_slug, list);
+  }
+
+  return categories
+    .filter((category) => category.kind !== "subcategory")
+    .map((root) => ({
+      root,
+      children: childrenByParent.get(root.slug) ?? [],
+    }));
+}
+
+export function categoryOptionLabel(category: CategoryOption, parentTitle?: string) {
+  if (category.kind === "glossary") return `[Glossary] ${category.title}`;
+  if (category.kind === "subcategory") {
+    return parentTitle
+      ? `${parentTitle} › ${category.title}`
+      : `— ${category.title}`;
+  }
+  return category.title;
+}
 
 export const DEFAULT_AUTHOR = "Nguyễn Tiến Sử, MD, PhD, MBA";
 export const DEFAULT_AUTHOR_BIO =
   "Tốt nghiệp Bác Sĩ Đa Khoa (MD), tại Đại Học Y Dược TP. HCM, VIETNAM (1995). Tốt nghiệp Tiến Sĩ Y Khoa (PhD), ngành Y Học Ứng Dụng Gene, tại Tokyo Medical and Dental University, JAPAN (2007). Tốt nghiệp Thạc Sĩ Quản Trị Kinh Doanh (MBA), tại University of Queensland, AUSTRALIA (2012). Hiện đang công tác trong lĩnh vực nghiên cứu và phát triển thuốc mới.";
+
 
 export function slugify(input: string) {
   return input

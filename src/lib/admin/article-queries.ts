@@ -9,6 +9,7 @@ const ARTICLE_SELECT =
 export async function listAdminArticles(options?: {
   q?: string;
   status?: "all" | "published" | "draft";
+  category?: string;
   page?: number;
   pageSize?: number;
 }) {
@@ -25,6 +26,11 @@ export async function listAdminArticles(options?: {
     query = query.eq("is_published", true);
   } else if (options?.status === "draft") {
     query = query.eq("is_published", false);
+  }
+
+  const category = options?.category?.trim();
+  if (category && category !== "all") {
+    query = query.eq("category_href", `/${category}`);
   }
 
   const q = options?.q?.trim();
@@ -71,10 +77,59 @@ export async function listCategoryOptions(): Promise<CategoryOption[]> {
   const supabase = await createAuthServerClient();
   const { data, error } = await supabase
     .from("categories")
-    .select("slug, title, kind")
+    .select("slug, title, kind, parent_slug, sort_order")
     .in("kind", ["archive", "subcategory", "glossary"])
     .order("sort_order");
 
   if (error) throw new Error(error.message);
-  return (data ?? []) as CategoryOption[];
+
+  const rows = (data ?? []) as Array<
+    CategoryOption & { sort_order: number | null }
+  >;
+  const bySlug = new Map(rows.map((row) => [row.slug, row]));
+  const roots = rows
+    .filter((row) => row.kind !== "subcategory")
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const childrenByParent = new Map<string, typeof rows>();
+  for (const row of rows) {
+    if (row.kind !== "subcategory" || !row.parent_slug) continue;
+    const list = childrenByParent.get(row.parent_slug) ?? [];
+    list.push(row);
+    childrenByParent.set(row.parent_slug, list);
+  }
+
+  const ordered: CategoryOption[] = [];
+  for (const root of roots) {
+    ordered.push({
+      slug: root.slug,
+      title: root.title,
+      kind: root.kind,
+      parent_slug: root.parent_slug,
+    });
+    const children = (childrenByParent.get(root.slug) ?? []).sort(
+      (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+    );
+    for (const child of children) {
+      ordered.push({
+        slug: child.slug,
+        title: child.title,
+        kind: child.kind,
+        parent_slug: child.parent_slug,
+      });
+    }
+  }
+
+  // Orphan subcategories (missing parent row) — still selectable
+  for (const row of rows) {
+    if (row.kind !== "subcategory") continue;
+    if (row.parent_slug && bySlug.has(row.parent_slug)) continue;
+    ordered.push({
+      slug: row.slug,
+      title: row.title,
+      kind: row.kind,
+      parent_slug: row.parent_slug,
+    });
+  }
+
+  return ordered;
 }

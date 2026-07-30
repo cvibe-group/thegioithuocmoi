@@ -1,15 +1,12 @@
 "use client";
 
-import Image from "next/image";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { BrandingSettings } from "@/data/queries";
+import { ImageUploadField } from "@/components/admin/ImageUploadField";
 import { createAuthBrowserClient } from "@/lib/supabase/browser";
 
-async function upsertSetting(
-  key: string,
-  value: string,
-) {
+async function upsertSetting(key: string, value: string) {
   const supabase = createAuthBrowserClient();
   const { error } = await supabase.from("site_settings").upsert({
     key,
@@ -88,45 +85,30 @@ export function BrandingSettingsForm({ initial }: { initial: BrandingSettings })
       className="max-w-3xl space-y-6 rounded-lg border border-[#ece4f3] bg-white p-5"
     >
       <div className="grid gap-6 md:grid-cols-2">
-        <div>
-          <p className="mb-2 text-[13px] font-bold">Logo</p>
-          <div className="mb-3 rounded border border-[#ece4f3] bg-brand-light p-3">
-            <Image
-              src={logoFile ? URL.createObjectURL(logoFile) : form.logoSrc}
-              alt="Logo preview"
-              width={220}
-              height={74}
-              className="h-auto w-[220px] object-contain"
-              unoptimized
-            />
-          </div>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(event) => setLogoFile(event.target.files?.[0] ?? null)}
-            className="block w-full text-[13px]"
-          />
-        </div>
+        <ImageUploadField
+          label="Logo"
+          compact
+          selectedFile={logoFile}
+          previewUrl={form.logoSrc}
+          previewAlt="Logo preview"
+          onFileChange={setLogoFile}
+          onClear={() => setLogoFile(null)}
+          disabled={saving}
+          hint="PNG / SVG khuyến nghị"
+        />
 
-        <div>
-          <p className="mb-2 text-[13px] font-bold">Favicon</p>
-          <div className="mb-3 flex h-[90px] items-center justify-center rounded border border-[#ece4f3] bg-brand-light">
-            <Image
-              src={faviconFile ? URL.createObjectURL(faviconFile) : form.faviconSrc}
-              alt="Favicon preview"
-              width={48}
-              height={48}
-              className="size-12 object-contain"
-              unoptimized
-            />
-          </div>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(event) => setFaviconFile(event.target.files?.[0] ?? null)}
-            className="block w-full text-[13px]"
-          />
-        </div>
+        <ImageUploadField
+          label="Favicon"
+          compact
+          selectedFile={faviconFile}
+          previewUrl={form.faviconSrc}
+          previewAlt="Favicon preview"
+          onFileChange={setFaviconFile}
+          onClear={() => setFaviconFile(null)}
+          disabled={saving}
+          hint="PNG vuông, ~48–128px"
+          previewAspectClassName="aspect-square"
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

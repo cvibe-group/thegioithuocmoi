@@ -178,6 +178,7 @@ export async function getAdminGlossaryData(
           title: active.title,
           kind: "glossary",
           parent_slug: null,
+          parent_title: null,
           total_pages: 1,
           sort_order: active.sort_order,
           article_count: active.article_count,

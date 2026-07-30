@@ -6,6 +6,7 @@ export type AdminCategory = {
   title: string;
   kind: "archive" | "subcategory" | "glossary";
   parent_slug: string | null;
+  parent_title: string | null;
   total_pages: number;
   sort_order: number;
   article_count: number;
@@ -33,6 +34,7 @@ async function enrichCategory(
     total_pages: number;
     sort_order: number;
   },
+  parentTitleBySlug?: Map<string, string>,
 ): Promise<AdminCategory> {
   const { count: articleCount } = await supabase
     .from("category_articles")
@@ -48,11 +50,38 @@ async function enrichCategory(
           .eq("kind", "subcategory")
       : { count: 0 as number | null };
 
+  const parent_title =
+    cat.parent_slug != null
+      ? (parentTitleBySlug?.get(cat.parent_slug) ?? cat.parent_slug)
+      : null;
+
   return {
     ...cat,
+    parent_title,
     article_count: articleCount ?? 0,
     subcategory_count: subcategoryCount ?? 0,
   };
+}
+
+async function loadParentTitleMap(
+  supabase: Awaited<ReturnType<typeof createAuthServerClient>>,
+  parentSlugs: string[],
+): Promise<Map<string, string>> {
+  const unique = [...new Set(parentSlugs.filter(Boolean))];
+  if (unique.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from("categories")
+    .select("slug, title")
+    .in("slug", unique);
+  if (error) throw new Error(error.message);
+
+  return new Map(
+    ((data ?? []) as Array<{ slug: string; title: string }>).map((row) => [
+      row.slug,
+      row.title,
+    ]),
+  );
 }
 
 export async function listAdminCategories() {
@@ -75,8 +104,13 @@ export async function listAdminCategories() {
     sort_order: number;
   }>;
 
+  const parentTitles = await loadParentTitleMap(
+    supabase,
+    list.map((cat) => cat.parent_slug).filter((slug): slug is string => Boolean(slug)),
+  );
+
   const enriched = await Promise.all(
-    list.map((cat) => enrichCategory(supabase, cat)),
+    list.map((cat) => enrichCategory(supabase, cat, parentTitles)),
   );
 
   const createParents = enriched
@@ -117,15 +151,24 @@ export async function listAdminCategoriesPaged(options?: {
   const { data, error, count } = await query.range(from, from + pageSize - 1);
   if (error) throw new Error(error.message);
 
+  const rows = (data ?? []) as Array<{
+    slug: string;
+    title: string;
+    kind: "archive" | "subcategory";
+    parent_slug: string | null;
+    total_pages: number;
+    sort_order: number;
+  }>;
+
+  const parentTitles = await loadParentTitleMap(
+    supabase,
+    rows
+      .map((cat) => cat.parent_slug)
+      .filter((slug): slug is string => Boolean(slug)),
+  );
+
   const items = await Promise.all(
-    ((data ?? []) as Array<{
-      slug: string;
-      title: string;
-      kind: "archive" | "subcategory";
-      parent_slug: string | null;
-      total_pages: number;
-      sort_order: number;
-    }>).map((cat) => enrichCategory(supabase, cat)),
+    rows.map((cat) => enrichCategory(supabase, cat, parentTitles)),
   );
 
   return { items, total: count ?? 0, page, pageSize };
@@ -153,7 +196,19 @@ export async function getAdminCategoryBySlug(
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) return null;
-  return enrichCategory(supabase, data as AdminCategory);
+  const row = data as {
+    slug: string;
+    title: string;
+    kind: AdminCategory["kind"];
+    parent_slug: string | null;
+    total_pages: number;
+    sort_order: number;
+  };
+  const parentTitles = await loadParentTitleMap(
+    supabase,
+    row.parent_slug ? [row.parent_slug] : [],
+  );
+  return enrichCategory(supabase, row, parentTitles);
 }
 
 export async function listSubcategoriesPaged(
@@ -182,6 +237,8 @@ export async function listSubcategoriesPaged(
   const { data, error, count } = await query.range(from, from + pageSize - 1);
   if (error) throw new Error(error.message);
 
+  const parentTitles = await loadParentTitleMap(supabase, [parentSlug]);
+
   const items = await Promise.all(
     ((data ?? []) as Array<{
       slug: string;
@@ -190,7 +247,7 @@ export async function listSubcategoriesPaged(
       parent_slug: string | null;
       total_pages: number;
       sort_order: number;
-    }>).map((cat) => enrichCategory(supabase, cat)),
+    }>).map((cat) => enrichCategory(supabase, cat, parentTitles)),
   );
 
   return { items, total: count ?? 0, page, pageSize };

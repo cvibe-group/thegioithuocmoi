@@ -1,6 +1,9 @@
 import { Suspense } from "react";
 import { ArticlesTable } from "@/components/admin/ArticlesTable";
-import { listAdminArticles } from "@/lib/admin/article-queries";
+import {
+  listAdminArticles,
+  listCategoryOptions,
+} from "@/lib/admin/article-queries";
 import {
   parseAdminPage,
   parseAdminPageSize,
@@ -12,6 +15,7 @@ interface PageProps {
     pageSize?: string;
     q?: string;
     status?: string;
+    category?: string;
   }>;
 }
 
@@ -23,13 +27,18 @@ export default async function AdminArticlesPage({ searchParams }: PageProps) {
   const statusRaw = params.status;
   const status =
     statusRaw === "published" || statusRaw === "draft" ? statusRaw : "all";
+  const category = params.category?.trim() || "all";
 
-  const { items, total } = await listAdminArticles({
-    page,
-    pageSize,
-    q,
-    status,
-  });
+  const [{ items, total }, categories] = await Promise.all([
+    listAdminArticles({
+      page,
+      pageSize,
+      q,
+      status,
+      category,
+    }),
+    listCategoryOptions(),
+  ]);
 
   return (
     <div>
@@ -38,7 +47,11 @@ export default async function AdminArticlesPage({ searchParams }: PageProps) {
         Quản lý nội dung: tạo, sửa, publish/ẩn, xóa.
       </p>
       <Suspense fallback={<p className="text-[13px] text-[#666]">Đang tải…</p>}>
-        <ArticlesTable articles={items} total={total} />
+        <ArticlesTable
+          articles={items}
+          total={total}
+          categories={categories}
+        />
       </Suspense>
     </div>
   );

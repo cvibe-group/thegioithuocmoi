@@ -97,6 +97,25 @@ export function CategoriesTable({
       ),
     },
     {
+      key: "archive",
+      header: "Archive",
+      cell: (cat) =>
+        cat.kind === "subcategory" ? (
+          cat.parent_slug ? (
+            <Link
+              href={`/admin/categories/${cat.parent_slug}`}
+              className="text-brand hover:underline"
+            >
+              {cat.parent_title ?? cat.parent_slug}
+            </Link>
+          ) : (
+            "—"
+          )
+        ) : (
+          "—"
+        ),
+    },
+    {
       key: "kind",
       header: "Loại",
       cell: (cat) => cat.kind,
