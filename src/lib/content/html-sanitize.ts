@@ -19,14 +19,46 @@ const ALLOWED_TAGS = new Set([
   "em",
   "b",
   "i",
+  "span",
   "a",
   "img",
   "blockquote",
   "figure",
   "figcaption",
+  "table",
+  "thead",
+  "tbody",
+  "tfoot",
+  "tr",
+  "th",
+  "td",
+  "colgroup",
+  "col",
 ]);
 
-const VOID_TAGS = new Set(["br", "img"]);
+const VOID_TAGS = new Set(["br", "img", "col"]);
+
+const STYLE_ALLOWED_ON = new Set([
+  "p",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "span",
+  "strong",
+  "em",
+  "b",
+  "i",
+  "a",
+  "li",
+  "td",
+  "th",
+  "table",
+  "figure",
+  "div",
+]);
 
 function isSafeUrl(value: string): boolean {
   const trimmed = value.trim();
@@ -58,6 +90,94 @@ function parseAttrs(raw: string): Record<string, string> {
     attrs[name] = value;
   }
   return attrs;
+}
+
+/** Safe color values only (hex / rgb(a) / hsl(a)) — no url()/expression. */
+function sanitizeColorValue(value: string): string | null {
+  const v = value.trim().toLowerCase();
+  if (/^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v)) {
+    return v;
+  }
+  if (
+    /^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i.test(
+      v,
+    )
+  ) {
+    return v.replace(/\s+/g, "");
+  }
+  if (
+    /^hsla?\(\s*\d{1,3}\s*,\s*\d{1,3}%\s*,\s*\d{1,3}%(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i.test(
+      v,
+    )
+  ) {
+    return v.replace(/\s+/g, "");
+  }
+  return null;
+}
+
+/** Keep only safe CSS declarations (color / text-align / simple width). */
+function sanitizeStyle(style: string): string | null {
+  const parts: string[] = [];
+  const color = style.match(/(?:^|;)\s*color\s*:\s*([^;]+)/i);
+  if (color?.[1]) {
+    const safeColor = sanitizeColorValue(color[1]);
+    if (safeColor) parts.push(`color:${safeColor}`);
+  }
+  const align = style.match(/text-align\s*:\s*(left|center|right|justify)\s*;?/i);
+  if (align?.[1]) parts.push(`text-align:${align[1].toLowerCase()}`);
+  const width = style.match(/width\s*:\s*(\d{1,4}(?:\.\d+)?(?:%|px))\s*;?/i);
+  if (width?.[1]) parts.push(`width:${width[1]}`);
+  return parts.length ? parts.join(";") : null;
+}
+
+function sanitizeClass(className: string): string | null {
+  const allowed = className
+    .split(/\s+/)
+    .filter((token) =>
+      /^(table|image|text-align-(?:left|center|right|justify))$/i.test(token),
+    );
+  return allowed.length ? allowed.join(" ") : null;
+}
+
+function openTag(tag: string, attrsRaw: string): string | null {
+  const attrs = parseAttrs(attrsRaw);
+  const parts: string[] = [];
+
+  if (tag === "a") {
+    if (!attrs.href || !isSafeUrl(attrs.href)) return null;
+    parts.push(`href="${escapeAttr(attrs.href)}"`);
+    if (attrs.title) parts.push(`title="${escapeAttr(attrs.title)}"`);
+    if (attrs.target === "_blank") {
+      parts.push('target="_blank"', 'rel="noopener noreferrer"');
+    }
+  } else if (tag === "img") {
+    if (!attrs.src || !isSafeUrl(attrs.src)) return null;
+    parts.push(`src="${escapeAttr(attrs.src)}"`);
+    parts.push(`alt="${escapeAttr(attrs.alt ?? "")}"`);
+  } else {
+    if ((tag === "td" || tag === "th") && attrs.colspan) {
+      const n = Number(attrs.colspan);
+      if (Number.isInteger(n) && n > 0 && n < 50) {
+        parts.push(`colspan="${n}"`);
+      }
+    }
+    if ((tag === "td" || tag === "th") && attrs.rowspan) {
+      const n = Number(attrs.rowspan);
+      if (Number.isInteger(n) && n > 0 && n < 50) {
+        parts.push(`rowspan="${n}"`);
+      }
+    }
+    if (attrs.class) {
+      const safeClass = sanitizeClass(attrs.class);
+      if (safeClass) parts.push(`class="${escapeAttr(safeClass)}"`);
+    }
+    if (attrs.style && STYLE_ALLOWED_ON.has(tag)) {
+      const safeStyle = sanitizeStyle(attrs.style);
+      if (safeStyle) parts.push(`style="${escapeAttr(safeStyle)}"`);
+    }
+  }
+
+  return parts.length ? `<${tag} ${parts.join(" ")}>` : `<${tag}>`;
 }
 
 /**
@@ -109,29 +229,23 @@ export function sanitizeArticleHtml(input: string): string {
       continue;
     }
 
+    if (tag === "col") {
+      const open = openTag(tag, m[2] ?? "");
+      if (open) out.push(open.endsWith(">") ? open.replace(/>$/, " />") : `${open} />`);
+      continue;
+    }
+
     if (tag === "img") {
-      const attrs = parseAttrs(m[2] ?? "");
-      if (!attrs.src || !isSafeUrl(attrs.src)) continue;
-      out.push(
-        `<img src="${escapeAttr(attrs.src)}" alt="${escapeAttr(attrs.alt ?? "")}" />`,
-      );
-      continue;
-    }
-
-    if (tag === "a") {
-      const attrs = parseAttrs(m[2] ?? "");
-      if (!attrs.href || !isSafeUrl(attrs.href)) continue;
-      const parts = [`href="${escapeAttr(attrs.href)}"`];
-      if (attrs.title) parts.push(`title="${escapeAttr(attrs.title)}"`);
-      if (attrs.target === "_blank") {
-        parts.push('target="_blank"', 'rel="noopener noreferrer"');
+      const open = openTag(tag, m[2] ?? "");
+      if (open) {
+        out.push(open.replace(/>$/, " />"));
       }
-      out.push(`<a ${parts.join(" ")}>`);
-      if (!selfClosing) stack.push("a");
       continue;
     }
 
-    out.push(`<${tag}>`);
+    const open = openTag(tag, m[2] ?? "");
+    if (!open) continue;
+    out.push(open);
     if (!selfClosing) stack.push(tag);
   }
 

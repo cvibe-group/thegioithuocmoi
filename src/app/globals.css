@@ -219,4 +219,43 @@
     font-size: 13px;
     color: #666;
   }
+
+  .article-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 16px;
+  }
+
+  .article-body th,
+  .article-body td {
+    border: 1px solid #d9d9d9;
+    padding: 0.5rem 0.75rem;
+    vertical-align: top;
+  }
+
+  .article-body th {
+    background: #f8f0f8;
+    font-weight: 700;
+  }
+
+  .article-body figure.table {
+    margin: 1.5rem 0;
+    overflow-x: auto;
+  }
+
+  .article-body [style*="text-align:center"],
+  .article-body [style*="text-align: center"] {
+    text-align: center;
+  }
+
+  .article-body [style*="text-align:right"],
+  .article-body [style*="text-align: right"] {
+    text-align: right;
+  }
+
+  .article-body [style*="text-align:justify"],
+  .article-body [style*="text-align: justify"] {
+    text-align: justify;
+  }
 }

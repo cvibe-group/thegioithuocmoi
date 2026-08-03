@@ -20,7 +20,7 @@ const blocks: ArticleBlock[] = [
 const html = blocksToHtml(blocks);
 const round = htmlToBlocks(html);
 const dirty = sanitizeArticleHtml(
-  `<p>Hi</p><script>alert(1)</script><img src=x onerror=alert(1) /><a href="javascript:alert(1)">x</a><a href="https://ok.com">ok</a>`,
+  `<p>Hi</p><script>alert(1)</script><img src=x onerror=alert(1) /><a href="javascript:alert(1)">x</a><a href="https://ok.com">ok</a><span style="color:hsl(0, 75%, 60%);background:url(evil)">Đỏ</span><span style="color:expression(alert(1))">x</span>`,
 );
 
 console.log("html:", html);
@@ -33,5 +33,9 @@ if (dirty.includes("script") || dirty.includes("javascript:")) {
   throw new Error("sanitize failed");
 }
 if (!dirty.includes('href="https://ok.com"')) throw new Error("lost safe link");
+if (!dirty.includes("color:hsl(0,75%,60%)")) throw new Error("lost font color");
+if (dirty.includes("expression") || dirty.includes("url(evil)")) {
+  throw new Error("unsafe style leaked");
+}
 
 console.log("OK");
