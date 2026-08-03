@@ -25,7 +25,10 @@ function hasFlag(flag: string): boolean {
 
 async function clearContent(supabase: SupabaseClient) {
   // Order: dependents first
-  const steps: Array<{ table: string; run: () => Promise<{ error: { message: string } | null }> }> = [
+  const steps: Array<{
+    table: string;
+    run: () => PromiseLike<{ error: { message: string } | null }>;
+  }> = [
     {
       table: "category_articles",
       run: () =>
