@@ -37,12 +37,15 @@
     "upload:images": "tsx scripts/upload-images-to-storage.ts",
     "migrate:wp:extract": "npx tsx scripts/migrate-wp/extract-preview.ts",
     "migrate:wp:phase2": "npx tsx scripts/migrate-wp/dry-run-upsert.ts",
-    "migrate:wp:images": "npx tsx scripts/migrate-wp/migrate-images.ts"
+    "migrate:wp:images": "npx tsx scripts/migrate-wp/migrate-images.ts",
+    "backfill:content-html": "npx tsx scripts/backfill-content-html.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
+    "@ckeditor/ckeditor5-react": "^11.2.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.110.8",
+    "ckeditor5": "^48.3.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.6.0",

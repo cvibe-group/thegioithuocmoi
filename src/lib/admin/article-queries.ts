@@ -4,7 +4,7 @@ import type { ArticleBlock } from "@/types/content";
 import { ADMIN_DEFAULT_PAGE_SIZE } from "@/lib/admin/pagination";
 
 const ARTICLE_SELECT =
-  "id, path, slug, year, month, day, title, category_label, category_href, date_label, datetime_label, read_time, image, excerpt, author, author_bio, layout, blocks, is_published, updated_at";
+  "id, path, slug, year, month, day, title, category_label, category_href, date_label, datetime_label, read_time, image, excerpt, author, author_bio, layout, blocks, content_html, is_published, tags, updated_at";
 
 export async function listAdminArticles(options?: {
   q?: string;
@@ -48,7 +48,9 @@ export async function listAdminArticles(options?: {
   return {
     items: ((data ?? []) as AdminArticle[]).map((row) => ({
       ...row,
+      tags: row.tags ?? [],
       blocks: (row.blocks ?? []) as ArticleBlock[],
+      content_html: row.content_html ?? null,
     })),
     total: count ?? 0,
     page,
@@ -69,7 +71,9 @@ export async function getAdminArticleById(id: string) {
 
   return {
     ...(data as AdminArticle),
+    tags: ((data as AdminArticle).tags ?? []) as string[],
     blocks: ((data as AdminArticle).blocks ?? []) as ArticleBlock[],
+    content_html: (data as AdminArticle).content_html ?? null,
   };
 }
 

@@ -137,3 +137,86 @@
     @apply font-sans;
   }
 }
+
+/* CKEditor / HTML article body — match block renderer typography */
+@layer components {
+  .article-body h2,
+  .article-body h3 {
+    padding-top: 0.5rem;
+    font-size: 18px;
+    font-weight: 700;
+    text-transform: uppercase;
+    line-height: 1.4;
+    color: #0a0a0a;
+  }
+
+  .article-body p {
+    margin: 0;
+  }
+
+  .article-body ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .article-body ul > li {
+    position: relative;
+    padding-left: 1rem;
+  }
+
+  .article-body ul > li::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+  }
+
+  .article-body ol {
+    padding-left: 1.25rem;
+    margin: 0;
+  }
+
+  .article-body a {
+    color: var(--brand);
+    text-decoration: underline;
+  }
+
+  .article-body strong,
+  .article-body b {
+    font-weight: 700;
+  }
+
+  .article-body em,
+  .article-body i {
+    font-style: italic;
+  }
+
+  .article-body blockquote {
+    margin: 1rem 0;
+    padding-left: 1rem;
+    border-left: 3px solid var(--brand);
+    color: #333;
+  }
+
+  .article-body figure {
+    margin: 1.5rem 0;
+  }
+
+  .article-body figure img,
+  .article-body img {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: #f5f0fa;
+  }
+
+  .article-body figcaption {
+    margin-top: 0.5rem;
+    text-align: center;
+    font-size: 13px;
+    color: #666;
+  }
+}

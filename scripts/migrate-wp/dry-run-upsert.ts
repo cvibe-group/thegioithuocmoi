@@ -24,29 +24,43 @@ function hasFlag(flag: string): boolean {
 }
 
 async function clearContent(supabase: SupabaseClient) {
-  const tables = [
-    "category_articles",
-    "homepage_section_articles",
-    "glossary_entries",
-    "articles",
-    "categories",
-    "glossary_tabs",
-  ] as const;
+  // Order: dependents first
+  const steps: Array<{ table: string; run: () => Promise<{ error: { message: string } | null }> }> = [
+    {
+      table: "category_articles",
+      run: () =>
+        supabase.from("category_articles").delete().neq("article_path", "__never__"),
+    },
+    {
+      table: "homepage_section_articles",
+      run: () =>
+        supabase
+          .from("homepage_section_articles")
+          .delete()
+          .neq("article_path", "__never__"),
+    },
+    {
+      table: "glossary_entries",
+      run: () => supabase.from("glossary_entries").delete().neq("href", "__never__"),
+    },
+    {
+      table: "articles",
+      run: () => supabase.from("articles").delete().neq("path", "__never__"),
+    },
+    {
+      table: "categories",
+      run: () => supabase.from("categories").delete().neq("slug", "__never__"),
+    },
+    {
+      table: "glossary_tabs",
+      run: () => supabase.from("glossary_tabs").delete().neq("id", "__never__"),
+    },
+  ];
 
-  for (const table of tables) {
-    const { error } = await supabase.from(table).delete().gte("sort_order", -999999);
-    if (error) {
-      // fallback for tables without sort_order / text PK
-      if (table === "glossary_tabs") {
-        await supabase.from("glossary_tabs").delete().neq("id", "");
-      } else if (table === "articles") {
-        await supabase.from("articles").delete().neq("path", "");
-      } else if (table === "categories") {
-        await supabase.from("categories").delete().neq("slug", "");
-      } else {
-        console.warn(`clear ${table}:`, error.message);
-      }
-    }
+  for (const step of steps) {
+    const { error } = await step.run();
+    if (error) console.warn(`clear ${step.table}:`, error.message);
+    else console.log(`  cleared ${step.table}`);
   }
 }
 

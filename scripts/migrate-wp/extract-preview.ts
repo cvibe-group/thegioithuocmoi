@@ -27,7 +27,7 @@ const OUT_DIR = path.join(__dirname, "out");
 const SAMPLES_DIR = path.join(OUT_DIR, "samples");
 
 const DEFAULT_DUMP_DIR =
-  "C:/Users/Admin/Downloads/thegioithuocmoi.com_wpvivid-f44c3070f499c_2026-07-27-10-46_backup_db";
+  "C:/Users/Admin/Downloads/thegioithuocmoi.com_wpvivid-2d17ca780aa07_2026-08-03-08-36_backup_db";
 const PREFIX = "o3K6G_";
 const TARGET_TYPES = new Set(["post", "glossary", "encyclopedia"]);
 const KEEP_STATUSES = new Set(["publish", "draft", "private", "pending", "future"]);

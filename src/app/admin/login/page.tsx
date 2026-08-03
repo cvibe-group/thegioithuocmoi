@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { isAdminUser } from "@/lib/admin/auth";
 import { createAuthBrowserClient } from "@/lib/supabase/browser";
 
 export default function AdminLoginPage() {
@@ -8,6 +9,15 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("error") === "forbidden") {
+      setError(
+        "Tài khoản chưa có quyền admin (app_metadata.role = admin). Liên hệ quản trị viên.",
+      );
+    }
+  }, []);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -31,9 +41,18 @@ export default function AdminLoginPage() {
       return;
     }
 
-    if (!data.session) {
+    if (!data.session || !data.user) {
       setLoading(false);
       setError("Không tạo được phiên đăng nhập.");
+      return;
+    }
+
+    if (!isAdminUser(data.user)) {
+      await supabase.auth.signOut();
+      setLoading(false);
+      setError(
+        "Tài khoản chưa có quyền admin. Cần app_metadata.role = \"admin\" trên Supabase Auth.",
+      );
       return;
     }
 
@@ -49,7 +68,7 @@ export default function AdminLoginPage() {
       >
         <h1 className="mb-1 text-[22px] font-bold">CMS Login</h1>
         <p className="mb-6 text-[13px] text-[#666]">
-          Đăng nhập bằng tài khoản Supabase Auth để quản trị nội dung.
+          Chỉ tài khoản có role <code>admin</code> mới vào được CMS.
         </p>
 
         <label className="mb-4 block">

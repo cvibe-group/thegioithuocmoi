@@ -3,6 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ArticleBlock } from "../../src/types/content";
 import { estimateReadTime, htmlToBlocks, stripTags } from "./html-to-blocks";
+import { blocksToHtml } from "../../src/lib/content/blocks-to-html";
+import { sanitizeArticleHtml } from "../../src/lib/content/html-sanitize";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.join(__dirname, "out");
@@ -79,7 +81,9 @@ export type ArticleRow = {
   author_bio: string;
   layout: "card" | "wide" | null;
   blocks: ArticleBlock[];
+  content_html: string | null;
   is_published: boolean;
+  published_on: string | null;
   // migrate metadata (stripped before upsert)
   _wpId: number;
   _wpType: string;
@@ -278,6 +282,10 @@ function toArticleRow(
   if (!parts) return null;
 
   const blocks = htmlToBlocks(item.contentHtml || "");
+  const content_html =
+    sanitizeArticleHtml(item.contentHtml || "") ||
+    sanitizeArticleHtml(blocksToHtml(blocks)) ||
+    null;
   const targets = resolveCategoryTargets(item.categories, wpCategoriesBySlug);
   const primary = pickPrimaryCategory(targets);
 
@@ -299,7 +307,9 @@ function toArticleRow(
     author_bio: DEFAULT_AUTHOR_BIO,
     layout: null,
     blocks,
+    content_html,
     is_published: item.status === "publish",
+    published_on: `${parts.year}-${parts.month}-${parts.day}`,
     _wpId: item.wpId,
     _wpType: item.type,
     _sourcePriority: priority,

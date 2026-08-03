@@ -1,8 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { Editor } from "ckeditor5";
 import type { ArticleBlock } from "@/types/content";
 import {
   type AdminArticle,
@@ -19,7 +21,24 @@ import {
   todayParts,
 } from "@/lib/admin/articles";
 import { ImageUploadField } from "@/components/admin/ImageUploadField";
+import { MediaPickerDialog } from "@/components/admin/MediaPickerDialog";
 import { createAuthBrowserClient } from "@/lib/supabase/browser";
+import { blocksToHtml } from "@/lib/content/blocks-to-html";
+import { htmlToBlocks } from "@/lib/content/html-to-blocks";
+import { sanitizeArticleHtml } from "@/lib/content/html-sanitize";
+
+const ArticleCkEditor = dynamic(
+  () =>
+    import("@/components/admin/ArticleCkEditor").then((m) => m.ArticleCkEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded border border-[#d9d9d9] bg-[#fafafa] px-3 py-8 text-center text-[13px] text-[#666]">
+        Đang tải trình soạn thảo…
+      </div>
+    ),
+  },
+);
 
 type FormState = {
   title: string;
@@ -35,7 +54,8 @@ type FormState = {
   layout: "" | "card" | "wide";
   image: string;
   is_published: boolean;
-  blocks: ArticleBlock[];
+  tags: string;
+  contentHtml: string;
 };
 
 function emptyForm(categories: CategoryOption[]): FormState {
@@ -55,7 +75,8 @@ function emptyForm(categories: CategoryOption[]): FormState {
     layout: "card",
     image: "",
     is_published: true,
-    blocks: [{ type: "paragraph", text: "" }],
+    tags: "",
+    contentHtml: "",
   };
 }
 
@@ -63,6 +84,10 @@ function fromArticle(article: AdminArticle, categories: CategoryOption[]): FormS
   const matched =
     categories.find((item) => categoryHrefFromSlug(item.slug) === article.category_href) ??
     categories.find((item) => item.title === article.category_label);
+
+  const contentHtml =
+    article.content_html?.trim() ||
+    blocksToHtml(article.blocks?.length ? article.blocks : []);
 
   return {
     title: article.title,
@@ -78,7 +103,8 @@ function fromArticle(article: AdminArticle, categories: CategoryOption[]): FormS
     layout: article.layout === "wide" || article.layout === "card" ? article.layout : "card",
     image: article.image ?? "",
     is_published: article.is_published,
-    blocks: article.blocks?.length ? article.blocks : [{ type: "paragraph", text: "" }],
+    tags: (article.tags ?? []).join(", "),
+    contentHtml,
   };
 }
 
@@ -161,9 +187,13 @@ export function ArticleForm({
   );
   const [slugTouched, setSlugTouched] = useState(mode === "edit");
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [mediaPickerFor, setMediaPickerFor] = useState<null | "hero" | "body">(
+    null,
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const ckEditorRef = useRef<Editor | null>(null);
 
   const previewPath = useMemo(
     () => buildArticlePath(form.year, form.month, form.day, form.slug || "slug"),
@@ -171,23 +201,6 @@ export function ArticleForm({
   );
 
   const selectedCategory = categories.find((item) => item.slug === form.categorySlug);
-
-  function updateBlock(index: number, patch: Partial<ArticleBlock>) {
-    setForm((prev) => ({
-      ...prev,
-      blocks: prev.blocks.map((block, i) => (i === index ? { ...block, ...patch } : block)),
-    }));
-  }
-
-  function moveBlock(index: number, direction: -1 | 1) {
-    setForm((prev) => {
-      const next = [...prev.blocks];
-      const target = index + direction;
-      if (target < 0 || target >= next.length) return prev;
-      [next[index], next[target]] = [next[target], next[index]];
-      return { ...prev, blocks: next };
-    });
-  }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -222,6 +235,10 @@ export function ArticleForm({
 
       const path = buildArticlePath(form.year, form.month, form.day, slug);
       const layout = form.layout || null;
+      const sanitizedHtml = sanitizeArticleHtml(form.contentHtml);
+      const blocks: ArticleBlock[] = htmlToBlocks(sanitizedHtml, {
+        includeImages: true,
+      });
       const payload = {
         path,
         slug,
@@ -240,7 +257,12 @@ export function ArticleForm({
         author: form.author.trim() || DEFAULT_AUTHOR,
         author_bio: form.author_bio.trim() || DEFAULT_AUTHOR_BIO,
         layout,
-        blocks: form.blocks,
+        content_html: sanitizedHtml || null,
+        blocks,
+        tags: form.tags
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean),
         is_published: form.is_published,
         updated_at: new Date().toISOString(),
       };
@@ -263,6 +285,22 @@ export function ArticleForm({
               .select("id, path")
               .single());
           }
+          if (insertError?.message?.includes("tags")) {
+            const { tags: _tags, ...withoutTags } = body;
+            ({ data, error: insertError } = await supabase
+              .from("articles")
+              .insert(withoutTags)
+              .select("id, path")
+              .single());
+          }
+          if (insertError?.message?.includes("content_html")) {
+            const { content_html: _html, ...withoutHtml } = body;
+            ({ data, error: insertError } = await supabase
+              .from("articles")
+              .insert(withoutHtml)
+              .select("id, path")
+              .single());
+          }
           if (insertError) throw new Error(insertError.message);
           if (!data) throw new Error("Không tạo được bài viết");
           return data;
@@ -279,8 +317,34 @@ export function ArticleForm({
             .update(without)
             .eq("id", initial.id));
         }
+        if (updateError?.message?.includes("tags")) {
+          const { tags: _tags, ...withoutTags } = body;
+          ({ error: updateError } = await supabase
+            .from("articles")
+            .update(withoutTags)
+            .eq("id", initial.id));
+        }
+        if (updateError?.message?.includes("content_html")) {
+          const { content_html: _html, ...withoutHtml } = body;
+          ({ error: updateError } = await supabase
+            .from("articles")
+            .update(withoutHtml)
+            .eq("id", initial.id));
+        }
         if (updateError) throw new Error(updateError.message);
         return { id: initial.id, path: initial.path };
+      }
+
+      async function revalidatePublic(paths: string[]) {
+        try {
+          await fetch("/api/revalidate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ paths }),
+          });
+        } catch {
+          // non-blocking
+        }
       }
 
       if (mode === "create") {
@@ -292,6 +356,7 @@ export function ArticleForm({
           layout,
         });
 
+        await revalidatePublic([data.path, "/"]);
         router.replace(`/admin/articles/${data.id}`);
         router.refresh();
         return;
@@ -322,6 +387,7 @@ export function ArticleForm({
         layout,
       });
 
+      await revalidatePublic([initial.path, "/"]);
       router.refresh();
       setImageFile(null);
       setForm((prev) => ({ ...prev, image: image || "" }));
@@ -351,12 +417,14 @@ export function ArticleForm({
           </Link>
           {mode === "edit" ? (
             <a
-              href={previewPath}
+              href={
+                form.is_published ? previewPath : `${previewPath}?preview=1`
+              }
               target="_blank"
               rel="noreferrer"
               className="rounded border border-border-light px-3 py-2 text-[13px]"
             >
-              Xem trên site
+              {form.is_published ? "Xem trên site" : "Preview draft"}
             </a>
           ) : null}
           <button
@@ -426,100 +494,28 @@ export function ArticleForm({
             />
           </label>
 
+          <label className="block">
+            <span className="mb-1 block text-[13px] font-medium">Tags</span>
+            <input
+              value={form.tags}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, tags: event.target.value }))
+              }
+              placeholder="VD: huyết áp, tim mạch (cách nhau bởi dấu phẩy)"
+              className="w-full rounded border border-[#d9d9d9] px-3 py-2 text-[14px] outline-none focus:border-brand"
+            />
+          </label>
+
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-[15px] font-bold">Nội dung (blocks)</h2>
-              <div className="flex gap-2">
-                {(
-                  [
-                    ["heading", "Heading"],
-                    ["paragraph", "Paragraph"],
-                    ["list", "List"],
-                  ] as const
-                ).map(([type, label]) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() =>
-                      setForm((prev) => ({
-                        ...prev,
-                        blocks: [
-                          ...prev.blocks,
-                          type === "list"
-                            ? { type, items: [""] }
-                            : { type, text: "" },
-                        ],
-                      }))
-                    }
-                    className="rounded border border-border-light px-2 py-1 text-[12px] hover:border-brand hover:text-brand"
-                  >
-                    + {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {form.blocks.map((block, index) => (
-              <div
-                key={`${block.type}-${index}`}
-                className="rounded border border-border-light bg-[#fafafa] p-3"
-              >
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-[12px] font-bold uppercase text-[#666]">
-                    {block.type}
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => moveBlock(index, -1)}
-                      className="text-[12px] text-[#666]"
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => moveBlock(index, 1)}
-                      className="text-[12px] text-[#666]"
-                    >
-                      ↓
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setForm((prev) => ({
-                          ...prev,
-                          blocks: prev.blocks.filter((_, i) => i !== index),
-                        }))
-                      }
-                      className="text-[12px] text-red-600"
-                    >
-                      Xóa
-                    </button>
-                  </div>
-                </div>
-
-                {block.type === "list" ? (
-                  <textarea
-                    value={(block.items ?? []).join("\n")}
-                    onChange={(event) =>
-                      updateBlock(index, {
-                        items: event.target.value.split("\n"),
-                      })
-                    }
-                    rows={4}
-                    placeholder="Mỗi dòng một mục"
-                    className="w-full rounded border border-[#d9d9d9] px-3 py-2 text-[14px] outline-none focus:border-brand"
-                  />
-                ) : (
-                  <textarea
-                    value={block.text ?? ""}
-                    onChange={(event) => updateBlock(index, { text: event.target.value })}
-                    rows={block.type === "heading" ? 2 : 4}
-                    className="w-full rounded border border-[#d9d9d9] px-3 py-2 text-[14px] outline-none focus:border-brand"
-                  />
-                )}
-              </div>
-            ))}
+            <h2 className="text-[15px] font-bold">Nội dung</h2>
+            <ArticleCkEditor
+              value={form.contentHtml}
+              onChange={(html) =>
+                setForm((prev) => ({ ...prev, contentHtml: html }))
+              }
+              editorRef={ckEditorRef}
+              onRequestMedia={() => setMediaPickerFor("body")}
+            />
           </div>
         </div>
 
@@ -647,6 +643,15 @@ export function ArticleForm({
                 setForm((prev) => ({ ...prev, image: "" }));
               }}
             />
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setMediaPickerFor("hero")}
+                className="rounded border border-brand bg-brand-light px-3 py-1.5 text-[12px] font-medium text-brand"
+              >
+                Chọn từ Media
+              </button>
+            </div>
             <input
               value={form.image}
               onChange={(event) =>
@@ -682,6 +687,43 @@ export function ArticleForm({
           </div>
         </aside>
       </div>
+
+      <MediaPickerDialog
+        open={mediaPickerFor !== null}
+        onClose={() => setMediaPickerFor(null)}
+        onSelect={(url) => {
+          if (mediaPickerFor === "hero") {
+            setImageFile(null);
+            setForm((prev) => ({ ...prev, image: url }));
+            setMediaPickerFor(null);
+            return;
+          }
+          if (mediaPickerFor === "body") {
+            const editor = ckEditorRef.current;
+            if (editor) {
+              editor.model.change((writer) => {
+                const imageElement = writer.createElement("imageBlock", {
+                  src: url,
+                  alt: "",
+                });
+                editor.model.insertContent(
+                  imageElement,
+                  editor.model.document.selection,
+                );
+              });
+              setForm((prev) => ({ ...prev, contentHtml: editor.getData() }));
+            } else {
+              setForm((prev) => ({
+                ...prev,
+                contentHtml:
+                  prev.contentHtml +
+                  `<figure class="image"><img src="${url}" alt="" /></figure>`,
+              }));
+            }
+            setMediaPickerFor(null);
+          }
+        }}
+      />
     </form>
   );
 }

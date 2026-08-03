@@ -39,7 +39,9 @@ type ArticleRow = {
   author_bio: string | null;
   layout: "card" | "wide" | null;
   blocks: ArticleBlock[] | null;
+  content_html?: string | null;
   is_published: boolean;
+  tags?: string[] | null;
 };
 
 function mapArticle(row: ArticleRow, layoutOverride?: string | null): Article {
@@ -61,7 +63,11 @@ function mapArticle(row: ArticleRow, layoutOverride?: string | null): Article {
   };
 }
 
-function mapDetail(row: ArticleRow, related: Article[] = []): ArticleDetail {
+function mapDetail(
+  row: ArticleRow,
+  related: Article[] = [],
+  options?: { isPreview?: boolean },
+): ArticleDetail {
   return {
     slug: row.slug.normalize("NFC"),
     year: row.year,
@@ -74,10 +80,14 @@ function mapDetail(row: ArticleRow, related: Article[] = []): ArticleDetail {
     datetime: row.datetime_label ?? `${row.date_label} 12:21 chiều`,
     readTime: row.read_time,
     image: row.image ?? undefined,
+    excerpt: row.excerpt ?? undefined,
     author: row.author ?? "Nguyễn Tiến Sử, MD, PhD, MBA",
     authorBio: row.author_bio ?? "",
+    tags: row.tags ?? [],
     blocks: row.blocks ?? [],
+    contentHtml: row.content_html ?? null,
     related,
+    isPreview: options?.isPreview ?? false,
   };
 }
 
@@ -402,26 +412,58 @@ export async function getArticleDetailFromDb(
   month: string,
   day: string,
   slug: string,
+  options?: { preview?: boolean },
 ): Promise<ArticleDetail | null> {
   if (!isSupabaseConfigured()) return null;
-  const supabase = createDataClient();
   const variants = articlePathVariants(year, month, day, slug);
 
   let row: ArticleRow | null = null;
-  for (const path of variants) {
-    const { data, error } = await supabase
-      .from("articles")
-      .select("*")
-      .eq("path", path)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    if (data) {
-      row = data as ArticleRow;
-      break;
+  let usedPreviewClient = false;
+
+  if (options?.preview) {
+    const { createAuthServerClient } = await import("@/lib/supabase/server");
+    const { isAdminUser } = await import("@/lib/admin/auth");
+    const auth = await createAuthServerClient();
+    const {
+      data: { user },
+    } = await auth.auth.getUser();
+    if (isAdminUser(user)) {
+      usedPreviewClient = true;
+      for (const path of variants) {
+        const { data, error } = await auth
+          .from("articles")
+          .select("*")
+          .eq("path", path)
+          .maybeSingle();
+        if (error) throw new Error(error.message);
+        if (data) {
+          row = data as ArticleRow;
+          break;
+        }
+      }
     }
   }
-  if (!row) return null;
 
+  if (!row) {
+    const supabase = createDataClient();
+    for (const path of variants) {
+      const { data, error } = await supabase
+        .from("articles")
+        .select("*")
+        .eq("path", path)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (data) {
+        row = data as ArticleRow;
+        break;
+      }
+    }
+  }
+
+  if (!row) return null;
+  if (!row.is_published && !usedPreviewClient) return null;
+
+  const supabase = createDataClient();
   const { data: relatedRows } = await supabase
     .from("articles")
     .select("*")
@@ -432,6 +474,7 @@ export async function getArticleDetailFromDb(
   return mapDetail(
     row,
     (relatedRows as ArticleRow[] | null)?.map((r) => mapArticle(r)) ?? [],
+    { isPreview: usedPreviewClient && !row.is_published },
   );
 }
 
@@ -802,31 +845,58 @@ function escapeIlikePattern(value: string) {
 
 export async function searchArticlesFromDb(
   query: string,
-  options: { limit?: number } = {},
-): Promise<Article[]> {
-  if (!isSupabaseConfigured()) return [];
+  options: { limit?: number; page?: number } = {},
+): Promise<{ items: Article[]; total: number; page: number; pageSize: number }> {
+  if (!isSupabaseConfigured()) {
+    return { items: [], total: 0, page: 1, pageSize: options.limit ?? 20 };
+  }
   const supabase = createDataClient();
   const q = query.trim();
-  const limit = options.limit ?? 50;
+  const pageSize = Math.max(1, options.limit ?? 20);
+  const page = Math.max(1, options.page ?? 1);
+  const offset = (page - 1) * pageSize;
 
-  let request = supabase
-    .from("articles")
-    .select(
-      "path, title, category_label, date_label, read_time, image, excerpt, author, layout",
-    )
-    .eq("is_published", true)
-    .order("date_label", { ascending: false })
-    .limit(limit);
-
-  if (q) {
-    const pattern = `%${escapeIlikePattern(q)}%`;
-    // Quote values so spaces/commas in the query don't break PostgREST `or`
-    const quoted = `"${pattern.replace(/"/g, '\\"')}"`;
-    request = request.or(
-      `title.ilike.${quoted},category_label.ilike.${quoted},excerpt.ilike.${quoted}`,
-    );
+  if (!q) {
+    return { items: [], total: 0, page, pageSize };
   }
 
-  const { data } = await request;
-  return ((data as ArticleRow[] | null) ?? []).map((row) => mapArticle(row));
+  const { data, error } = await supabase.rpc("search_articles", {
+    p_query: q,
+    p_limit: pageSize,
+    p_offset: offset,
+  });
+
+  if (error) {
+    const pattern = `%${escapeIlikePattern(q)}%`;
+    const quoted = `"${pattern.replace(/"/g, '\\"')}"`;
+    const fallback = await supabase
+      .from("articles")
+      .select(
+        "path, title, category_label, date_label, read_time, image, excerpt, author, layout",
+        { count: "exact" },
+      )
+      .eq("is_published", true)
+      .or(
+        `title.ilike.${quoted},category_label.ilike.${quoted},excerpt.ilike.${quoted}`,
+      )
+      .order("date_label", { ascending: false })
+      .range(offset, offset + pageSize - 1);
+
+    const rows = (fallback.data as ArticleRow[] | null) ?? [];
+    return {
+      items: rows.map((row) => mapArticle(row)),
+      total: fallback.count ?? rows.length,
+      page,
+      pageSize,
+    };
+  }
+
+  const rows = (data ?? []) as Array<ArticleRow & { total_count?: number }>;
+  const total = Number(rows[0]?.total_count ?? 0);
+  return {
+    items: rows.map((row) => mapArticle(row)),
+    total,
+    page,
+    pageSize,
+  };
 }

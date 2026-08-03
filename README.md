@@ -143,6 +143,12 @@ npm run typecheck # TypeScript check
 npm run check  # Run lint + typecheck + build
 ```
 
+### This fork (Thế Giới Thuốc Mới)
+
+- Deploy & admin role: [docs/DEPLOY.md](docs/DEPLOY.md)
+- Visual QA: [docs/research/VISUAL_QA_CHECKLIST.md](docs/research/VISUAL_QA_CHECKLIST.md)
+- Image audit: [docs/research/IMAGE_AUDIT.md](docs/research/IMAGE_AUDIT.md)
+
 ### If using docker
 
 ```bash

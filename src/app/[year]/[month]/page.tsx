@@ -4,6 +4,7 @@ import { CategoryArchivePage } from "@/components/CategoryArchivePage";
 import { PageShell } from "@/components/PageShell";
 import { getAllSubcategoryParamsFromDb, getCategoryPageFromDb } from "@/data/queries";
 import { parseCategoryPage } from "@/lib/category-pagination";
+import { buildPageMetadata } from "@/lib/seo";
 
 interface PageProps {
   // Param tên "year"/"month" để khớp cây route bài viết /[year]/[month]/[day]/[slug].
@@ -23,9 +24,13 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { year: parentSlug, month: slug } = await params;
   const data = await getCategoryPageFromDb(`${parentSlug}/${slug}`);
-  return {
-    title: data ? `${data.title} - Thế Giới Thuốc Mới` : "Thế Giới Thuốc Mới",
-  };
+  return buildPageMetadata({
+    title: data?.title ?? slug,
+    path: `/${parentSlug}/${slug}`,
+    description: data
+      ? `Chuyên mục ${data.title} — Thế Giới Thuốc Mới`
+      : undefined,
+  });
 }
 
 export default async function DynamicSubcategoryPage({

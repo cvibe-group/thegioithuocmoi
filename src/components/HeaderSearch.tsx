@@ -4,7 +4,8 @@ import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SearchIcon } from "@/components/icons";
-import { createBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { createAuthBrowserClient } from "@/lib/supabase/browser";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { cn } from "@/lib/utils";
 
 type SearchHit = {
@@ -63,31 +64,45 @@ export function HeaderSearch() {
 
       setLoading(true);
       try {
-        const supabase = createBrowserClient();
-        const pattern = `%${escapeIlikePattern(q)}%`;
-        const quoted = `"${pattern.replace(/"/g, '\\"')}"`;
-        const { data, error } = await supabase
-          .from("articles")
-          .select("path, title, category_label")
-          .eq("is_published", true)
-          .or(
-            `title.ilike.${quoted},category_label.ilike.${quoted},excerpt.ilike.${quoted}`,
-          )
-          .order("date_label", { ascending: false })
-          .limit(8);
+        const supabase = createAuthBrowserClient();
+        const { data, error } = await supabase.rpc("search_articles", {
+          p_query: q,
+          p_limit: 8,
+          p_offset: 0,
+        });
 
         if (cancelled) return;
         if (error || !data) {
-          setHits([]);
+          const pattern = `%${escapeIlikePattern(q)}%`;
+          const quoted = `"${pattern.replace(/"/g, '\\"')}"`;
+          const fallback = await supabase
+            .from("articles")
+            .select("path, title, category_label")
+            .eq("is_published", true)
+            .or(
+              `title.ilike.${quoted},category_label.ilike.${quoted},excerpt.ilike.${quoted}`,
+            )
+            .order("date_label", { ascending: false })
+            .limit(8);
+          if (cancelled) return;
+          setHits(
+            (fallback.data ?? []).map((row) => ({
+              href: row.path,
+              title: row.title,
+              category: row.category_label,
+            })),
+          );
           return;
         }
 
         setHits(
-          data.map((row) => ({
-            href: row.path,
-            title: row.title,
-            category: row.category_label,
-          })),
+          (data as Array<{ path: string; title: string; category_label: string }>).map(
+            (row) => ({
+              href: row.path,
+              title: row.title,
+              category: row.category_label,
+            }),
+          ),
         );
       } catch {
         if (!cancelled) setHits([]);

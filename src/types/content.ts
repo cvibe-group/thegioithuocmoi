@@ -11,9 +11,12 @@ export interface Article {
 }
 
 export interface ArticleBlock {
-  type: "heading" | "paragraph" | "list";
+  type: "heading" | "paragraph" | "list" | "image";
   text?: string;
   items?: string[];
+  /** Image block: public URL */
+  src?: string;
+  alt?: string;
 }
 
 export interface ArticleDetail {
@@ -28,11 +31,17 @@ export interface ArticleDetail {
   datetime: string;
   readTime: string;
   image?: string;
+  excerpt?: string;
   author: string;
   authorBio: string;
   authorImage?: string;
+  tags?: string[];
   blocks: ArticleBlock[];
+  /** Sanitized HTML body from CKEditor; preferred over blocks when present */
+  contentHtml?: string | null;
   related: Article[];
+  /** True when serving unpublished content to an admin preview session */
+  isPreview?: boolean;
 }
 
 export interface BreadcrumbItem {

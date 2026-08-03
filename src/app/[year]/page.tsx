@@ -11,6 +11,7 @@ import {
   getTopLevelCategoryParamsFromDb,
 } from "@/data/queries";
 import { parseCategoryPage } from "@/lib/category-pagination";
+import { buildPageMetadata } from "@/lib/seo";
 
 interface PageProps {
   params: Promise<{ year: string }>;
@@ -35,17 +36,21 @@ export async function generateMetadata({
   if (kind === "glossary") {
     const tabs = await getGlossaryTabsFromDb();
     const tab = tabs.find((t) => t.id === year);
-    return {
-      title: tab
-        ? `${tab.label} - Thế Giới Thuốc Mới`
-        : "Thế Giới Thuốc Mới",
-    };
+    return buildPageMetadata({
+      title: tab?.label ?? "Glossary",
+      path: `/${year}`,
+      description: `Danh mục ${tab?.label ?? year} — Thế Giới Thuốc Mới`,
+    });
   }
 
   const data = await getCategoryPageFromDb(year);
-  return {
-    title: data ? `${data.title} - Thế Giới Thuốc Mới` : "Thế Giới Thuốc Mới",
-  };
+  return buildPageMetadata({
+    title: data?.title ?? year,
+    path: `/${year}`,
+    description: data
+      ? `Chuyên mục ${data.title} — bài viết mới nhất`
+      : undefined,
+  });
 }
 
 export default async function DynamicTopLevelCategoryPage({

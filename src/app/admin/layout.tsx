@@ -1,4 +1,5 @@
 import { AdminShell } from "@/components/admin/AdminShell";
+import { isAdminUser } from "@/lib/admin/auth";
 import { createAuthServerClient } from "@/lib/supabase/server";
 
 export default async function AdminLayout({
@@ -12,7 +13,7 @@ export default async function AdminLayout({
   } = await supabase.auth.getUser();
 
   // Login page renders without shell
-  if (!user) {
+  if (!user || !isAdminUser(user)) {
     return <>{children}</>;
   }
 

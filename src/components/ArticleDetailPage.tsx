@@ -1,9 +1,11 @@
 import Image from "next/image";
+import { ArticleBodyHtml } from "@/components/ArticleBodyHtml";
 import { ArticleCard } from "@/components/ArticleCard";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { ClockIcon } from "@/components/icons";
 import { ShareSidebar } from "@/components/ShareSidebar";
 import { highlightGlossaryText } from "@/lib/glossary-highlight";
+import { sanitizeArticleHtml } from "@/lib/content/html-sanitize";
 import {
   isArticlePlaceholderImage,
   resolveArticleImage,
@@ -30,10 +32,19 @@ export function ArticleDetailPage({
 
   const heroImage = resolveArticleImage(article.image);
   const heroIsPlaceholder = isArticlePlaceholderImage(article.image);
+  const safeHtml = article.contentHtml?.trim()
+    ? sanitizeArticleHtml(article.contentHtml)
+    : "";
 
   return (
     <div className="relative mx-auto max-w-[750px]">
       <ShareSidebar title={article.title} path={articlePath} />
+
+      {article.isPreview ? (
+        <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
+          Bản xem trước (draft) — chỉ admin thấy được với <code>?preview=1</code>.
+        </div>
+      ) : null}
 
       <Breadcrumbs
         items={[
@@ -55,6 +66,19 @@ export function ArticleDetailPage({
         {article.datetime}
       </p>
 
+      {article.tags && article.tags.length > 0 ? (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {article.tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded border border-border-light bg-brand-light px-2 py-0.5 text-[12px] text-brand"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
       <div className="relative mb-4 aspect-[16/10] w-full overflow-hidden bg-[#f5f0fa]">
         <Image
           src={heroImage}
@@ -68,37 +92,66 @@ export function ArticleDetailPage({
 
       <p className="mb-6 text-right text-[14px] text-[#666666]">{article.author}</p>
 
-      <div className="space-y-4 text-[18px] leading-[1.6] text-[#0a0a0a]">
-        {article.blocks.map((block, index) => {
-          if (block.type === "heading") {
+      {safeHtml ? (
+        <ArticleBodyHtml
+          html={safeHtml}
+          glossaryTerms={glossaryTerms}
+          articlePath={articlePath}
+        />
+      ) : (
+        <div className="article-body space-y-4 text-[18px] leading-[1.6] text-[#0a0a0a]">
+          {article.blocks.map((block, index) => {
+            if (block.type === "heading") {
+              return (
+                <h2
+                  key={index}
+                  className="pt-2 text-[18px] font-bold uppercase leading-[1.4] text-[#0a0a0a]"
+                >
+                  {block.text}
+                </h2>
+              );
+            }
+            if (block.type === "list") {
+              return (
+                <ul key={index} className="list-none space-y-3 pl-0">
+                  {block.items?.map((item, itemIndex) => (
+                    <li key={`${index}-${itemIndex}`} className="relative pl-4">
+                      <span className="absolute left-0">•</span>
+                      {highlight(item, `l${index}-${itemIndex}`)}
+                    </li>
+                  ))}
+                </ul>
+              );
+            }
+            if (block.type === "image" && block.src) {
+              return (
+                <figure key={index} className="my-6">
+                  <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#f5f0fa]">
+                    <Image
+                      src={block.src}
+                      alt={block.alt || ""}
+                      fill
+                      className="object-contain"
+                      sizes="750px"
+                      unoptimized
+                    />
+                  </div>
+                  {block.alt ? (
+                    <figcaption className="mt-2 text-center text-[13px] text-[#666]">
+                      {block.alt}
+                    </figcaption>
+                  ) : null}
+                </figure>
+              );
+            }
             return (
-              <h2
-                key={index}
-                className="pt-2 text-[18px] font-bold uppercase leading-[1.4] text-[#0a0a0a]"
-              >
-                {block.text}
-              </h2>
+              <p key={index}>
+                {block.text ? highlight(block.text, `p${index}`) : null}
+              </p>
             );
-          }
-          if (block.type === "list") {
-            return (
-              <ul key={index} className="list-none space-y-3 pl-0">
-                {block.items?.map((item, itemIndex) => (
-                  <li key={`${index}-${itemIndex}`} className="relative pl-4">
-                    <span className="absolute left-0">•</span>
-                    {highlight(item, `l${index}-${itemIndex}`)}
-                  </li>
-                ))}
-              </ul>
-            );
-          }
-          return (
-            <p key={index}>
-              {block.text ? highlight(block.text, `p${index}`) : null}
-            </p>
-          );
-        })}
-      </div>
+          })}
+        </div>
+      )}
 
       <section className="mt-10 rounded bg-[rgba(184,9,177,0.06)] p-5 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">

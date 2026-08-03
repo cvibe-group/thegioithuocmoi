@@ -9,6 +9,16 @@ const nextConfig: NextConfig = {
         hostname: "iweejgtuyzdmdjdjmxiq.supabase.co",
         pathname: "/storage/v1/object/public/**",
       },
+      {
+        protocol: "https",
+        hostname: "thegioithuocmoi.com",
+        pathname: "/wp-content/uploads/**",
+      },
+      {
+        protocol: "https",
+        hostname: "www.thegioithuocmoi.com",
+        pathname: "/wp-content/uploads/**",
+      },
     ],
   },
 };

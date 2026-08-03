@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isAdminUser } from "@/lib/admin/auth";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/env";
 
 export async function updateSession(request: NextRequest) {
@@ -27,17 +28,25 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
-  const isAdmin = pathname.startsWith("/admin");
+  const isAdminRoute = pathname.startsWith("/admin");
   const isLogin = pathname === "/admin/login";
+  const isAdmin = isAdminUser(user);
 
-  if (isAdmin && !isLogin && !user) {
+  if (isAdminRoute && !isLogin && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/admin/login";
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 
-  if (isLogin && user) {
+  if (isAdminRoute && !isLogin && user && !isAdmin) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/admin/login";
+    url.searchParams.set("error", "forbidden");
+    return NextResponse.redirect(url);
+  }
+
+  if (isLogin && user && isAdmin) {
     const url = request.nextUrl.clone();
     url.pathname = "/admin";
     return NextResponse.redirect(url);

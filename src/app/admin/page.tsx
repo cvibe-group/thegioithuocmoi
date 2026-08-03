@@ -47,7 +47,7 @@ export default async function AdminDashboardPage() {
     <div>
       <h1 className="mb-2 text-[24px] font-bold">Dashboard</h1>
       <p className="mb-6 text-[14px] text-[#666]">
-        Tổng quan nội dung. Phase 2 sẽ thêm CRUD bài viết đầy đủ.
+        Tổng quan nội dung đã publish / CMS. Quản lý bài viết, danh mục, media và branding bên dưới.
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

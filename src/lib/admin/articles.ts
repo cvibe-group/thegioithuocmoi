@@ -19,7 +19,9 @@ export type AdminArticle = {
   author_bio: string | null;
   layout: "card" | "wide" | "featured" | null;
   blocks: ArticleBlock[];
+  content_html?: string | null;
   is_published: boolean;
+  tags?: string[];
   updated_at: string;
 };
 
