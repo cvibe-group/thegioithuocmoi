@@ -8,6 +8,10 @@ import { MediaPickerDialog } from "@/components/admin/MediaPickerDialog";
 import { useConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { slugify } from "@/lib/admin/articles";
 import type { AdminAuthor } from "@/lib/admin/author-queries";
+import {
+  optimizeImageForUpload,
+  storageExtForFile,
+} from "@/lib/admin/optimize-image";
 import { createAuthBrowserClient } from "@/lib/supabase/browser";
 
 export function AuthorForm({
@@ -54,13 +58,17 @@ export function AuthorForm({
       let imageUrl = image.trim() || null;
 
       if (imageFile) {
-        const ext = imageFile.name.split(".").pop() || "jpeg";
+        const optimized = await optimizeImageForUpload(imageFile, {
+          maxWidth: 512,
+          quality: 0.85,
+        });
+        const ext = storageExtForFile(optimized);
         const objectPath = `thegioithuocmoi/author-${Date.now()}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from("images")
-          .upload(objectPath, imageFile, {
+          .upload(objectPath, optimized, {
             upsert: true,
-            contentType: imageFile.type,
+            contentType: optimized.type,
             cacheControl: "31536000",
           });
         if (uploadError) throw new Error(uploadError.message);

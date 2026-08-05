@@ -1,6 +1,6 @@
 /** UI/chrome constants that are not CMS content. */
 export const LOGO_SRC =
-  "https://iweejgtuyzdmdjdjmxiq.supabase.co/storage/v1/object/public/images/thegioithuocmoi/TGTM-Final-06-750x254.png";
+  "https://iweejgtuyzdmdjdjmxiq.supabase.co/storage/v1/object/public/images/thegioithuocmoi/TGTM-Final-06-750x254.webp";
 
 /** Fallback when an article has no featured image (local logo asset). */
 export const ARTICLE_PLACEHOLDER_IMAGE =

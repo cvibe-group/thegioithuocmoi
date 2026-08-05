@@ -10,6 +10,7 @@ import { AdminPagination } from "@/components/admin/AdminPagination";
 import { useConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { ImageUploadField } from "@/components/admin/ImageUploadField";
 import { createAuthBrowserClient } from "@/lib/supabase/browser";
+import { optimizeImageForUpload } from "@/lib/admin/optimize-image";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   ADMIN_DEFAULT_PAGE_SIZE,
@@ -134,14 +135,18 @@ export function MediaManager({
       const uploaded: MediaFile[] = [];
 
       for (const file of fileList) {
-        const objectPath = `${currentPath}/${file.name}`;
+        const optimized = await optimizeImageForUpload(file);
+        const objectPath = `${currentPath}/${optimized.name}`;
         const { error: uploadError } = await supabase.storage
           .from(bucket)
-          .upload(objectPath, file, { upsert: true, contentType: file.type });
+          .upload(objectPath, optimized, {
+            upsert: true,
+            contentType: optimized.type,
+          });
         if (uploadError) throw new Error(uploadError.message);
 
         const { data } = supabase.storage.from(bucket).getPublicUrl(objectPath);
-        uploaded.push({ name: file.name, url: data.publicUrl });
+        uploaded.push({ name: optimized.name, url: data.publicUrl });
       }
 
       setFiles((prev) => {

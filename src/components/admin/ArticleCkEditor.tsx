@@ -29,6 +29,10 @@ import {
 } from "ckeditor5";
 import "ckeditor5/ckeditor5.css";
 import { createAuthBrowserClient } from "@/lib/supabase/browser";
+import {
+  optimizeImageForUpload,
+  storageExtForFile,
+} from "@/lib/admin/optimize-image";
 
 type ArticleCkEditorProps = {
   value: string;
@@ -43,12 +47,16 @@ function SupabaseUploadAdapterPlugin(editor: Editor) {
     upload: async () => {
       const file = await loader.file;
       if (!file) throw new Error("Không có file");
+      const optimized = await optimizeImageForUpload(file, {
+        maxWidth: 1600,
+        quality: 0.8,
+      });
       const supabase = createAuthBrowserClient();
-      const ext = file.name.split(".").pop() || "jpeg";
+      const ext = storageExtForFile(optimized);
       const objectPath = `thegioithuocmoi/article-body-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("images").upload(objectPath, file, {
+      const { error } = await supabase.storage.from("images").upload(objectPath, optimized, {
         upsert: true,
-        contentType: file.type,
+        contentType: optimized.type,
         cacheControl: "31536000",
       });
       if (error) throw new Error(error.message);

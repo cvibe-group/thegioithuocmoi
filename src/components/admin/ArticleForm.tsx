@@ -28,6 +28,10 @@ import { createAuthBrowserClient } from "@/lib/supabase/browser";
 import { blocksToHtml } from "@/lib/content/blocks-to-html";
 import { htmlToBlocks } from "@/lib/content/html-to-blocks";
 import { sanitizeArticleHtml } from "@/lib/content/html-sanitize";
+import {
+  optimizeImageForUpload,
+  storageExtForFile,
+} from "@/lib/admin/optimize-image";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 const ArticleCkEditor = dynamic(
@@ -313,13 +317,14 @@ export function ArticleForm({
       }
 
       if (imageFile) {
-        const ext = imageFile.name.split(".").pop() || "jpeg";
+        const optimized = await optimizeImageForUpload(imageFile);
+        const ext = storageExtForFile(optimized);
         const objectPath = `thegioithuocmoi/article-${Date.now()}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from("images")
-          .upload(objectPath, imageFile, {
+          .upload(objectPath, optimized, {
             upsert: true,
-            contentType: imageFile.type,
+            contentType: optimized.type,
             cacheControl: "31536000",
           });
         if (uploadError) throw new Error(uploadError.message);

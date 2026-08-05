@@ -4,6 +4,10 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { BrandingSettings } from "@/data/queries";
 import { ImageUploadField } from "@/components/admin/ImageUploadField";
+import {
+  optimizeImageForUpload,
+  storageExtForFile,
+} from "@/lib/admin/optimize-image";
 import { createAuthBrowserClient } from "@/lib/supabase/browser";
 
 async function upsertSetting(key: string, value: string) {
@@ -50,10 +54,15 @@ export function BrandingSettingsForm({ initial }: { initial: BrandingSettings })
       let faviconSrc = form.faviconSrc;
 
       if (logoFile) {
-        const ext = logoFile.name.split(".").pop() || "png";
-        logoSrc = await uploadBrandAsset(logoFile, `logo-brand.${ext}`);
+        const optimized = await optimizeImageForUpload(logoFile, {
+          maxWidth: 1200,
+          quality: 0.9,
+        });
+        const ext = storageExtForFile(optimized, "png");
+        logoSrc = await uploadBrandAsset(optimized, `logo-brand.${ext}`);
       }
       if (faviconFile) {
+        // Keep original format for broad favicon support
         const ext = faviconFile.name.split(".").pop() || "png";
         faviconSrc = await uploadBrandAsset(faviconFile, `favicon-brand.${ext}`);
       }

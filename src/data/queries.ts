@@ -860,9 +860,9 @@ export type BrandingSettings = {
 
 export const DEFAULT_BRANDING: BrandingSettings = {
   logoSrc:
-    "https://iweejgtuyzdmdjdjmxiq.supabase.co/storage/v1/object/public/images/thegioithuocmoi/TGTM-Final-06-750x254.png",
+    "https://iweejgtuyzdmdjdjmxiq.supabase.co/storage/v1/object/public/images/thegioithuocmoi/TGTM-Final-06-750x254.webp",
   faviconSrc:
-    "https://iweejgtuyzdmdjdjmxiq.supabase.co/storage/v1/object/public/images/thegioithuocmoi/TGTM-Final-tran-150x150.png",
+    "https://iweejgtuyzdmdjdjmxiq.supabase.co/storage/v1/object/public/images/thegioithuocmoi/TGTM-Final-tran-150x150.webp",
   brandPrimary: "#b809b1",
   brandLight: "#faf5ff",
   brandMuted: "#f5f0fa",
