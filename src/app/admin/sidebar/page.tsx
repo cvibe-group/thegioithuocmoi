@@ -1,7 +1,9 @@
 import { SidebarPanelsTable } from "@/components/admin/SidebarPanelsTable";
 import { getAdminSidebarData } from "@/lib/admin/structure-queries";
+import { requirePermission } from "@/lib/admin/require-permission";
 
 export default async function AdminSidebarPage() {
+  await requirePermission("sidebar");
   const { panels, categories } = await getAdminSidebarData();
 
   return (

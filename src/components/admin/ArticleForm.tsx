@@ -12,6 +12,7 @@ import {
   DEFAULT_AUTHOR,
   DEFAULT_AUTHOR_BIO,
   buildArticlePath,
+  formatAdminDateTime,
   toPublishedOn,
   categoryHrefFromSlug,
   groupCategoryOptions,
@@ -20,12 +21,14 @@ import {
   toDatetimeLabel,
   todayParts,
 } from "@/lib/admin/articles";
+import type { AuthorOption } from "@/lib/admin/author-queries";
 import { ImageUploadField } from "@/components/admin/ImageUploadField";
 import { MediaPickerDialog } from "@/components/admin/MediaPickerDialog";
 import { createAuthBrowserClient } from "@/lib/supabase/browser";
 import { blocksToHtml } from "@/lib/content/blocks-to-html";
 import { htmlToBlocks } from "@/lib/content/html-to-blocks";
 import { sanitizeArticleHtml } from "@/lib/content/html-sanitize";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 const ArticleCkEditor = dynamic(
   () =>
@@ -49,8 +52,7 @@ type FormState = {
   categorySlug: string;
   read_time: string;
   excerpt: string;
-  author: string;
-  author_bio: string;
+  authorIds: string[];
   layout: "" | "card" | "wide";
   image: string;
   is_published: boolean;
@@ -58,7 +60,18 @@ type FormState = {
   contentHtml: string;
 };
 
-function emptyForm(categories: CategoryOption[]): FormState {
+function defaultAuthorIds(authors: AuthorOption[]) {
+  const preferred =
+    authors.find((item) => item.name === DEFAULT_AUTHOR) ??
+    authors.find((item) => item.slug === "nguyen-tien-su") ??
+    authors[0];
+  return preferred ? [preferred.id] : [];
+}
+
+function emptyForm(
+  categories: CategoryOption[],
+  authors: AuthorOption[],
+): FormState {
   const today = todayParts();
   const first = categories[0];
   return {
@@ -70,8 +83,7 @@ function emptyForm(categories: CategoryOption[]): FormState {
     categorySlug: first?.slug ?? "thuoc",
     read_time: "5 phút đọc",
     excerpt: "",
-    author: DEFAULT_AUTHOR,
-    author_bio: DEFAULT_AUTHOR_BIO,
+    authorIds: defaultAuthorIds(authors),
     layout: "card",
     image: "",
     is_published: true,
@@ -80,7 +92,11 @@ function emptyForm(categories: CategoryOption[]): FormState {
   };
 }
 
-function fromArticle(article: AdminArticle, categories: CategoryOption[]): FormState {
+function fromArticle(
+  article: AdminArticle,
+  categories: CategoryOption[],
+  authors: AuthorOption[],
+): FormState {
   const matched =
     categories.find((item) => categoryHrefFromSlug(item.slug) === article.category_href) ??
     categories.find((item) => item.title === article.category_label);
@@ -88,6 +104,16 @@ function fromArticle(article: AdminArticle, categories: CategoryOption[]): FormS
   const contentHtml =
     article.content_html?.trim() ||
     blocksToHtml(article.blocks?.length ? article.blocks : []);
+
+  const authorIds =
+    article.author_ids?.length
+      ? article.author_ids
+      : (() => {
+          const byName = authors.find(
+            (item) => item.name === (article.author ?? DEFAULT_AUTHOR),
+          );
+          return byName ? [byName.id] : defaultAuthorIds(authors);
+        })();
 
   return {
     title: article.title,
@@ -98,8 +124,7 @@ function fromArticle(article: AdminArticle, categories: CategoryOption[]): FormS
     categorySlug: matched?.slug ?? "thuoc",
     read_time: article.read_time,
     excerpt: article.excerpt ?? "",
-    author: article.author ?? DEFAULT_AUTHOR,
-    author_bio: article.author_bio ?? DEFAULT_AUTHOR_BIO,
+    authorIds,
     layout: article.layout === "wide" || article.layout === "card" ? article.layout : "card",
     image: article.image ?? "",
     is_published: article.is_published,
@@ -172,18 +197,45 @@ async function syncCategoryLink(opts: {
   });
 }
 
+async function syncArticleAuthors(
+  articleId: string,
+  authorIds: string[],
+) {
+  const supabase = createAuthBrowserClient();
+  const { error: deleteError } = await supabase
+    .from("article_authors")
+    .delete()
+    .eq("article_id", articleId);
+  if (deleteError) throw new Error(deleteError.message);
+
+  if (authorIds.length === 0) return;
+
+  const { error: insertError } = await supabase.from("article_authors").insert(
+    authorIds.map((authorId, index) => ({
+      article_id: articleId,
+      author_id: authorId,
+      sort_order: index,
+    })),
+  );
+  if (insertError) throw new Error(insertError.message);
+}
+
 export function ArticleForm({
   mode,
   categories,
+  authors,
   initial,
 }: {
   mode: "create" | "edit";
   categories: CategoryOption[];
+  authors: AuthorOption[];
   initial?: AdminArticle;
 }) {
   const router = useRouter();
   const [form, setForm] = useState<FormState>(() =>
-    initial ? fromArticle(initial, categories) : emptyForm(categories),
+    initial
+      ? fromArticle(initial, categories, authors)
+      : emptyForm(categories, authors),
   );
   const [slugTouched, setSlugTouched] = useState(mode === "edit");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -201,6 +253,38 @@ export function ArticleForm({
   );
 
   const selectedCategory = categories.find((item) => item.slug === form.categorySlug);
+  const authorById = useMemo(
+    () => new Map(authors.map((item) => [item.id, item])),
+    [authors],
+  );
+  const selectedAuthors = form.authorIds
+    .map((id) => authorById.get(id))
+    .filter((item): item is AuthorOption => Boolean(item));
+
+  function toggleAuthor(authorId: string) {
+    setForm((prev) => {
+      if (prev.authorIds.includes(authorId)) {
+        return {
+          ...prev,
+          authorIds: prev.authorIds.filter((id) => id !== authorId),
+        };
+      }
+      return { ...prev, authorIds: [...prev.authorIds, authorId] };
+    });
+  }
+
+  function moveAuthor(authorId: string, direction: -1 | 1) {
+    setForm((prev) => {
+      const index = prev.authorIds.indexOf(authorId);
+      if (index < 0) return prev;
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= prev.authorIds.length) return prev;
+      const next = [...prev.authorIds];
+      const [item] = next.splice(index, 1);
+      next.splice(nextIndex, 0, item);
+      return { ...prev, authorIds: next };
+    });
+  }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -217,7 +301,16 @@ export function ArticleForm({
       }
 
       const supabase = createAuthBrowserClient();
+      const {
+        data: { user: sessionUser },
+      } = await supabase.auth.getUser();
+      const actorId = sessionUser?.id ?? null;
+      const actorEmail = sessionUser?.email ?? null;
       let image = form.image;
+
+      if (form.authorIds.length === 0) {
+        throw new Error("Chọn ít nhất một tác giả");
+      }
 
       if (imageFile) {
         const ext = imageFile.name.split(".").pop() || "jpeg";
@@ -233,13 +326,21 @@ export function ArticleForm({
         image = supabase.storage.from("images").getPublicUrl(objectPath).data.publicUrl;
       }
 
+      const primaryAuthor =
+        selectedAuthors[0] ??
+        authorById.get(form.authorIds[0]) ??
+        null;
+      const legacyAuthor = primaryAuthor?.name ?? DEFAULT_AUTHOR;
+      const legacyBio = primaryAuthor?.bio?.trim() || DEFAULT_AUTHOR_BIO;
+      const legacyImage = primaryAuthor?.image?.trim() || null;
+
       const path = buildArticlePath(form.year, form.month, form.day, slug);
       const layout = form.layout || null;
       const sanitizedHtml = sanitizeArticleHtml(form.contentHtml);
       const blocks: ArticleBlock[] = htmlToBlocks(sanitizedHtml, {
         includeImages: true,
       });
-      const payload = {
+      const payload: Record<string, unknown> = {
         path,
         slug,
         year: form.year,
@@ -254,8 +355,9 @@ export function ArticleForm({
         read_time: form.read_time.trim() || "5 phút đọc",
         image: image || null,
         excerpt: form.excerpt.trim() || null,
-        author: form.author.trim() || DEFAULT_AUTHOR,
-        author_bio: form.author_bio.trim() || DEFAULT_AUTHOR_BIO,
+        author: legacyAuthor,
+        author_bio: legacyBio,
+        author_image: legacyImage,
         layout,
         content_html: sanitizedHtml || null,
         blocks,
@@ -265,7 +367,13 @@ export function ArticleForm({
           .filter(Boolean),
         is_published: form.is_published,
         updated_at: new Date().toISOString(),
+        updated_by_id: actorId,
+        updated_by_email: actorEmail,
       };
+      if (mode === "create") {
+        payload.created_by_id = actorId;
+        payload.created_by_email = actorEmail;
+      }
 
       async function persistArticle(
         mode: "create" | "edit",
@@ -301,6 +409,23 @@ export function ArticleForm({
               .select("id, path")
               .single());
           }
+          if (
+            insertError?.message?.includes("created_by_") ||
+            insertError?.message?.includes("updated_by_")
+          ) {
+            const {
+              created_by_id: _cId,
+              created_by_email: _cEmail,
+              updated_by_id: _uId,
+              updated_by_email: _uEmail,
+              ...withoutAudit
+            } = body;
+            ({ data, error: insertError } = await supabase
+              .from("articles")
+              .insert(withoutAudit)
+              .select("id, path")
+              .single());
+          }
           if (insertError) throw new Error(insertError.message);
           if (!data) throw new Error("Không tạo được bài viết");
           return data;
@@ -331,6 +456,22 @@ export function ArticleForm({
             .update(withoutHtml)
             .eq("id", initial.id));
         }
+        if (
+          updateError?.message?.includes("created_by_") ||
+          updateError?.message?.includes("updated_by_")
+        ) {
+          const {
+            created_by_id: _cId,
+            created_by_email: _cEmail,
+            updated_by_id: _uId,
+            updated_by_email: _uEmail,
+            ...withoutAudit
+          } = body;
+          ({ error: updateError } = await supabase
+            .from("articles")
+            .update(withoutAudit)
+            .eq("id", initial.id));
+        }
         if (updateError) throw new Error(updateError.message);
         return { id: initial.id, path: initial.path };
       }
@@ -350,6 +491,7 @@ export function ArticleForm({
       if (mode === "create") {
         const data = await persistArticle("create", payload);
 
+        await syncArticleAuthors(data.id, form.authorIds);
         await syncCategoryLink({
           newPath: data.path,
           categorySlug: form.categorySlug,
@@ -378,19 +520,24 @@ export function ArticleForm({
       };
 
       await persistArticle("edit", editPayload);
+      await syncArticleAuthors(initial.id, form.authorIds);
 
       await syncCategoryLink({
         oldPath: initial.path,
         newPath: initial.path,
         categorySlug: form.categorySlug,
-        previousCategorySlug: fromArticle(initial, categories).categorySlug,
+        previousCategorySlug: fromArticle(initial, categories, authors)
+          .categorySlug,
         layout,
       });
 
       await revalidatePublic([initial.path, "/"]);
       router.refresh();
       setImageFile(null);
-      setForm((prev) => ({ ...prev, image: image || "" }));
+      setForm((prev) => ({
+        ...prev,
+        image: image || "",
+      }));
       setMessage("Đã lưu bài viết.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không lưu được bài viết");
@@ -663,28 +810,117 @@ export function ArticleForm({
           </div>
 
           <div className="space-y-3 rounded-lg border border-border-light bg-white p-4">
-            <label className="block">
-              <span className="mb-1 block text-[13px] font-medium">Tác giả</span>
-              <input
-                value={form.author}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, author: event.target.value }))
-                }
-                className="w-full rounded border border-[#d9d9d9] px-3 py-2 text-[14px] outline-none focus:border-brand"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-[13px] font-medium">Bio tác giả</span>
-              <textarea
-                value={form.author_bio}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, author_bio: event.target.value }))
-                }
-                rows={5}
-                className="w-full rounded border border-[#d9d9d9] px-3 py-2 text-[13px] outline-none focus:border-brand"
-              />
-            </label>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[13px] font-bold">Tác giả</p>
+              <Link
+                href="/admin/authors"
+                className="text-[12px] text-brand hover:underline"
+              >
+                Quản lý tác giả
+              </Link>
+            </div>
+            {authors.length === 0 ? (
+              <p className="text-[13px] text-[#666]">
+                Chưa có tác giả.{" "}
+                <Link href="/admin/authors/new" className="text-brand hover:underline">
+                  Tạo mới
+                </Link>
+              </p>
+            ) : (
+              <ul className="max-h-64 space-y-2 overflow-y-auto">
+                {authors.map((author) => {
+                  const selected = form.authorIds.includes(author.id);
+                  const order = form.authorIds.indexOf(author.id);
+                  return (
+                    <li
+                      key={author.id}
+                      className="flex items-start gap-2 rounded border border-border-light px-2 py-2"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => toggleAuthor(author.id)}
+                        className="mt-1"
+                        id={`author-${author.id}`}
+                      />
+                      <label
+                        htmlFor={`author-${author.id}`}
+                        className="min-w-0 flex-1 cursor-pointer"
+                      >
+                        <span className="block text-[13px] font-medium leading-snug">
+                          {author.name}
+                        </span>
+                        {selected ? (
+                          <span className="mt-0.5 block text-[11px] text-[#888]">
+                            Thứ tự #{order + 1}
+                          </span>
+                        ) : null}
+                      </label>
+                      {selected ? (
+                        <div className="flex shrink-0 flex-col gap-0.5">
+                          <button
+                            type="button"
+                            title="Lên"
+                            onClick={() => moveAuthor(author.id, -1)}
+                            disabled={order <= 0}
+                            className="rounded border border-border-light p-0.5 text-[#666] disabled:opacity-30"
+                          >
+                            <ChevronUp className="size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Xuống"
+                            onClick={() => moveAuthor(author.id, 1)}
+                            disabled={order >= form.authorIds.length - 1}
+                            className="rounded border border-border-light p-0.5 text-[#666] disabled:opacity-30"
+                          >
+                            <ChevronDown className="size-3.5" />
+                          </button>
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {selectedAuthors.length > 0 ? (
+              <p className="text-[11px] leading-relaxed text-[#888]">
+                Hiển thị: {selectedAuthors.map((a) => a.name).join(", ")}
+              </p>
+            ) : (
+              <p className="text-[11px] text-red-600">Chọn ít nhất một tác giả.</p>
+            )}
           </div>
+
+          {mode === "edit" && initial ? (
+            <div className="space-y-2 rounded-lg border border-border-light bg-white p-4">
+              <h2 className="text-[13px] font-bold text-[#0a0a0a]">Lịch sử CMS</h2>
+              <dl className="space-y-2 text-[12px] text-[#555]">
+                <div>
+                  <dt className="font-medium text-[#888]">Người tạo</dt>
+                  <dd>
+                    {initial.created_by_email || "—"}
+                    <span className="mt-0.5 block text-[11px] text-[#999]">
+                      {formatAdminDateTime(initial.created_at)}
+                    </span>
+                  </dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-[#888]">Cập nhật gần nhất</dt>
+                  <dd>
+                    {initial.updated_by_email || "—"}
+                    <span className="mt-0.5 block text-[11px] text-[#999]">
+                      {formatAdminDateTime(initial.updated_at)}
+                    </span>
+                  </dd>
+                </div>
+              </dl>
+              <p className="text-[11px] leading-relaxed text-[#999]">
+                Tự ghi khi lưu bài (tài khoản đang đăng nhập). Không phải trường
+                “Tác giả” hiển thị trên site.
+              </p>
+            </div>
+          ) : null}
         </aside>
       </div>
 

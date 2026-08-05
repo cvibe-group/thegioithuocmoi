@@ -19,6 +19,12 @@ export interface ArticleBlock {
   alt?: string;
 }
 
+export interface ArticleAuthor {
+  name: string;
+  bio: string;
+  image?: string;
+}
+
 export interface ArticleDetail {
   slug: string;
   year: string;
@@ -35,6 +41,7 @@ export interface ArticleDetail {
   author: string;
   authorBio: string;
   authorImage?: string;
+  authors: ArticleAuthor[];
   tags?: string[];
   blocks: ArticleBlock[];
   /** Sanitized HTML body from CKEditor; preferred over blocks when present */

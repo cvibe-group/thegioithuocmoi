@@ -3,6 +3,8 @@
  * Works in browser and Node without DOMPurify/jsdom.
  */
 
+import { normalizeArticleHtml } from "@/lib/content/normalize-html";
+
 const ALLOWED_TAGS = new Set([
   "p",
   "br",
@@ -182,6 +184,7 @@ function openTag(tag: string, attrsRaw: string): string | null {
 
 /**
  * Strip disallowed tags/attrs. Text kept; scripts/styles removed with content.
+ * Then reflow plain-text newlines into <p>/<br>.
  */
 export function sanitizeArticleHtml(input: string): string {
   if (!input?.trim()) return "";
@@ -253,5 +256,5 @@ export function sanitizeArticleHtml(input: string): string {
     out.push(`</${stack.pop()}>`);
   }
 
-  return out.join("").trim();
+  return normalizeArticleHtml(out.join("").trim());
 }

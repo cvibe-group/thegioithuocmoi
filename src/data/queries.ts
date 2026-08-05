@@ -5,12 +5,15 @@ import {
   categoryTotalPages,
 } from "@/lib/category-pagination";
 import { glossaryLetterFromTitle } from "@/lib/glossary";
+import { normalizeArticleHtml } from "@/lib/content/normalize-html";
+import { DEFAULT_AUTHOR } from "@/lib/admin/articles";
 import {
   articlePathVariants,
   normalizeArticleHref,
 } from "@/lib/unicode-path";
 import type {
   Article,
+  ArticleAuthor,
   ArticleBlock,
   ArticleDetail,
   ArticleSection,
@@ -22,6 +25,7 @@ import type {
 } from "@/types/content";
 
 type ArticleRow = {
+  id?: string;
   path: string;
   slug: string;
   year: string;
@@ -37,6 +41,7 @@ type ArticleRow = {
   excerpt: string | null;
   author: string | null;
   author_bio: string | null;
+  author_image?: string | null;
   layout: "card" | "wide" | null;
   blocks: ArticleBlock[] | null;
   content_html?: string | null;
@@ -66,8 +71,20 @@ function mapArticle(row: ArticleRow, layoutOverride?: string | null): Article {
 function mapDetail(
   row: ArticleRow,
   related: Article[] = [],
-  options?: { isPreview?: boolean },
+  options?: { isPreview?: boolean; authors?: ArticleAuthor[] },
 ): ArticleDetail {
+  const authors =
+    options?.authors && options.authors.length > 0
+      ? options.authors
+      : [
+          {
+            name: row.author ?? DEFAULT_AUTHOR,
+            bio: row.author_bio ?? "",
+            image: row.author_image?.trim() || undefined,
+          },
+        ];
+  const primary = authors[0];
+
   return {
     slug: row.slug.normalize("NFC"),
     year: row.year,
@@ -81,14 +98,54 @@ function mapDetail(
     readTime: row.read_time,
     image: row.image ?? undefined,
     excerpt: row.excerpt ?? undefined,
-    author: row.author ?? "Nguyễn Tiến Sử, MD, PhD, MBA",
-    authorBio: row.author_bio ?? "",
+    author: authors.map((item) => item.name).join(", "),
+    authorBio: primary?.bio ?? "",
+    authorImage: primary?.image || undefined,
+    authors,
     tags: row.tags ?? [],
     blocks: row.blocks ?? [],
-    contentHtml: row.content_html ?? null,
+    contentHtml: row.content_html
+      ? normalizeArticleHtml(row.content_html)
+      : null,
     related,
     isPreview: options?.isPreview ?? false,
   };
+}
+
+async function loadAuthorsForArticle(
+  articleId: string,
+): Promise<ArticleAuthor[]> {
+  const supabase = createDataClient();
+  const { data: links, error } = await supabase
+    .from("article_authors")
+    .select("author_id, sort_order")
+    .eq("article_id", articleId)
+    .order("sort_order", { ascending: true });
+  if (error || !links?.length) return [];
+
+  const authorIds = links.map((link) => link.author_id as string);
+  const { data: authors, error: authorError } = await supabase
+    .from("authors")
+    .select("id, name, bio, image")
+    .in("id", authorIds);
+  if (authorError || !authors) return [];
+
+  const byId = new Map<string, ArticleAuthor>();
+  for (const row of authors) {
+    const image = (row.image as string | null)?.trim() || undefined;
+    byId.set(row.id as string, {
+      name: row.name as string,
+      bio: (row.bio as string | null) ?? "",
+      ...(image ? { image } : {}),
+    });
+  }
+
+  const result: ArticleAuthor[] = [];
+  for (const id of authorIds) {
+    const item = byId.get(id);
+    if (item) result.push(item);
+  }
+  return result;
 }
 
 export async function getNavItemsFromDb(): Promise<NavItem[]> {
@@ -464,6 +521,7 @@ export async function getArticleDetailFromDb(
   if (!row.is_published && !usedPreviewClient) return null;
 
   const supabase = createDataClient();
+  const authors = row.id ? await loadAuthorsForArticle(row.id) : [];
   const { data: relatedRows } = await supabase
     .from("articles")
     .select("*")
@@ -474,7 +532,10 @@ export async function getArticleDetailFromDb(
   return mapDetail(
     row,
     (relatedRows as ArticleRow[] | null)?.map((r) => mapArticle(r)) ?? [],
-    { isPreview: usedPreviewClient && !row.is_published },
+    {
+      isPreview: usedPreviewClient && !row.is_published,
+      authors,
+    },
   );
 }
 

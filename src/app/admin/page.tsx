@@ -1,11 +1,18 @@
 import Link from "next/link";
+import {
+  ADMIN_NAV_PERMISSION,
+  getUserRole,
+  permissionsForRole,
+  type CmsPermission,
+} from "@/lib/admin/auth";
+import { requirePermission } from "@/lib/admin/require-permission";
 import { createAuthServerClient } from "@/lib/supabase/server";
 import { createDataClient } from "@/lib/supabase/data";
 
 async function getCounts() {
   const data = createDataClient();
   const auth = await createAuthServerClient();
-  const [articles, categories, glossaryCats, media] = await Promise.all([
+  const [articles, categories, glossaryCats, media, authors] = await Promise.all([
     data.from("articles").select("*", { count: "exact", head: true }),
     data.from("categories").select("*", { count: "exact", head: true }),
     data
@@ -13,6 +20,7 @@ async function getCounts() {
       .select("slug")
       .eq("kind", "glossary"),
     auth.storage.from("images").list("thegioithuocmoi", { limit: 1000 }),
+    data.from("authors").select("*", { count: "exact", head: true }),
   ]);
 
   const glossarySlugs = (glossaryCats.data ?? []).map((row) => row.slug as string);
@@ -27,6 +35,7 @@ async function getCounts() {
 
   return {
     articles: articles.count ?? 0,
+    authors: authors.count ?? 0,
     categories: categories.count ?? 0,
     glossary: glossaryCount,
     media: media.data?.length ?? 0,
@@ -34,14 +43,45 @@ async function getCounts() {
 }
 
 export default async function AdminDashboardPage() {
+  const user = await requirePermission("dashboard");
+  const role = getUserRole(user);
+  const allowed = new Set(
+    role ? permissionsForRole(role) : ([] as CmsPermission[]),
+  );
   const counts = await getCounts();
 
   const cards = [
-    { label: "Bài viết", value: counts.articles, href: "/admin/articles" },
-    { label: "Danh mục", value: counts.categories, href: "/admin/categories" },
-    { label: "Glossary", value: counts.glossary, href: "/admin/glossary" },
-    { label: "Media", value: counts.media, href: "/admin/media" },
-  ];
+    {
+      label: "Bài viết",
+      value: counts.articles,
+      href: "/admin/articles",
+      permission: ADMIN_NAV_PERMISSION["/admin/articles"],
+    },
+    {
+      label: "Tác giả",
+      value: counts.authors,
+      href: "/admin/authors",
+      permission: ADMIN_NAV_PERMISSION["/admin/authors"],
+    },
+    {
+      label: "Danh mục",
+      value: counts.categories,
+      href: "/admin/categories",
+      permission: ADMIN_NAV_PERMISSION["/admin/categories"],
+    },
+    {
+      label: "Glossary",
+      value: counts.glossary,
+      href: "/admin/glossary",
+      permission: ADMIN_NAV_PERMISSION["/admin/glossary"],
+    },
+    {
+      label: "Media",
+      value: counts.media,
+      href: "/admin/media",
+      permission: ADMIN_NAV_PERMISSION["/admin/media"],
+    },
+  ].filter((card) => !card.permission || allowed.has(card.permission));
 
   return (
     <div>

@@ -1,7 +1,9 @@
 import { BrandingSettingsForm } from "@/components/admin/BrandingSettingsForm";
 import { getBrandingFromDb } from "@/data/queries";
+import { requirePermission } from "@/lib/admin/require-permission";
 
 export default async function AdminSettingsPage() {
+  await requirePermission("settings");
   const branding = await getBrandingFromDb();
 
   return (

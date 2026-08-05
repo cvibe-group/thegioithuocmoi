@@ -19,17 +19,31 @@ npm run dev
 
 ## Admin CMS (`/admin`)
 
-1. Create a user in **Supabase Dashboard → Authentication → Users**.
-2. Set **App Metadata** to include admin role:
+### Roles (`app_metadata.role`)
+
+| Role | Quyền |
+|------|--------|
+| `super_admin` | Toàn quyền + quản lý user tại `/admin/users` |
+| `editor` | Nội dung & cấu trúc (không settings/users) |
+| `author` | Bài viết + media |
+| `viewer` | Chỉ xem dashboard / danh sách bài |
+
+Legacy `admin` được map thành `super_admin` (migration `20260805_cms_roles`).
+
+### Tạo user
+
+**Cách 1 (khuyến nghị):** đăng nhập Super Admin → `/admin/users` → tạo email/password + gán role.  
+Cần `SUPABASE_SERVICE_ROLE_KEY` trong `.env.local`.
+
+**Cách 2:** Supabase Dashboard → Authentication → Users → App Metadata:
 
 ```json
-{ "role": "admin" }
+{ "role": "super_admin" }
 ```
 
-3. Sign in at `/admin/login`.
-4. Existing users were promoted to `admin` by migration `20260731_admin_role_fts_tags` — **sign out and sign in again** so the JWT picks up `app_metadata.role`.
+Sau khi đổi role: **đăng xuất / đăng nhập lại** để JWT cập nhật.
 
-Write access is gated by RLS `public.is_admin()` (JWT claim) and Next.js middleware.
+Write DB gated bởi RLS `public.is_admin()` (roles ghi: super_admin, admin, editor, author) + middleware/page permission.
 
 ## Database
 
@@ -42,6 +56,8 @@ scripts/migrations/20260729_homepage_sidebar_auto_content.sql
 scripts/migrations/20260731_admin_role_fts_tags.sql
 scripts/migrations/20260731_vi_unaccent_search.sql
 scripts/migrations/20260803_article_content_html.sql
+scripts/migrations/20260805_cms_roles.sql
+scripts/migrations/20260805_article_audit_users.sql
 ```
 
 Backfill CKEditor HTML from existing blocks (after `content_html` column exists). Prefer service role or SQL:
@@ -86,6 +102,7 @@ After publishing content in CMS, ArticleForm calls `POST /api/revalidate` so pub
 | `/` | Homepage |
 | `/tim-kiem?q=` | Search (FTS + pagination) |
 | `/admin` | CMS dashboard |
+| `/admin/users` | Quản lý user & role (super_admin) |
 | `/admin/media` | Image library |
 | `/admin/settings` | Branding |
 

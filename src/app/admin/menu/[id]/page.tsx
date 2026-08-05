@@ -1,12 +1,14 @@
 import { notFound } from "next/navigation";
 import { MenuItemDetail } from "@/components/admin/MenuItemDetail";
 import { getAdminNavData } from "@/lib/admin/structure-queries";
+import { requirePermission } from "@/lib/admin/require-permission";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
 export default async function AdminMenuItemPage({ params }: PageProps) {
+  await requirePermission("menu");
   const { id } = await params;
   const { items, dropdowns } = await getAdminNavData();
   const item = items.find((row) => row.id === id);

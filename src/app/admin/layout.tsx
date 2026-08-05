@@ -1,5 +1,9 @@
 import { AdminShell } from "@/components/admin/AdminShell";
-import { isAdminUser } from "@/lib/admin/auth";
+import {
+  getUserRole,
+  isCmsUser,
+  permissionsForRole,
+} from "@/lib/admin/auth";
 import { createAuthServerClient } from "@/lib/supabase/server";
 
 export default async function AdminLayout({
@@ -13,9 +17,20 @@ export default async function AdminLayout({
   } = await supabase.auth.getUser();
 
   // Login page renders without shell
-  if (!user || !isAdminUser(user)) {
+  if (!user || !isCmsUser(user)) {
     return <>{children}</>;
   }
 
-  return <AdminShell email={user.email ?? "admin"}>{children}</AdminShell>;
+  const role = getUserRole(user);
+  const permissions = role ? [...permissionsForRole(role)] : [];
+
+  return (
+    <AdminShell
+      email={user.email ?? "admin"}
+      role={role}
+      permissions={permissions}
+    >
+      {children}
+    </AdminShell>
+  );
 }

@@ -1,12 +1,14 @@
 import { notFound } from "next/navigation";
 import { SidebarPanelDetail } from "@/components/admin/SidebarPanelDetail";
 import { getAdminSidebarData } from "@/lib/admin/structure-queries";
+import { requirePermission } from "@/lib/admin/require-permission";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
 export default async function AdminSidebarPanelPage({ params }: PageProps) {
+  await requirePermission("sidebar");
   const { id } = await params;
   const { panels, categories } = await getAdminSidebarData();
   const panel = panels.find((row) => row.id === id);

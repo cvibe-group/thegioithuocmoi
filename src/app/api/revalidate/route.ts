@@ -1,7 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+import { canWriteCms } from "@/lib/admin/auth";
 import { createAuthServerClient } from "@/lib/supabase/server";
-import { isAdminUser } from "@/lib/admin/auth";
 
 export async function POST(request: Request) {
   const supabase = await createAuthServerClient();
@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!isAdminUser(user)) {
+  if (!canWriteCms(user)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

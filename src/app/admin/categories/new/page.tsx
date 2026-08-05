@@ -1,7 +1,9 @@
 import { CategoryForm } from "@/components/admin/CategoryForm";
 import { listArchiveParents } from "@/lib/admin/category-queries";
+import { requirePermission } from "@/lib/admin/require-permission";
 
 export default async function AdminNewCategoryPage() {
+  await requirePermission("categories");
   const createParents = await listArchiveParents();
 
   return (

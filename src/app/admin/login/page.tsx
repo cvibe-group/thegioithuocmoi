@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { isAdminUser } from "@/lib/admin/auth";
+import { isCmsUser } from "@/lib/admin/auth";
 import { createAuthBrowserClient } from "@/lib/supabase/browser";
 
 export default function AdminLoginPage() {
@@ -14,7 +14,7 @@ export default function AdminLoginPage() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("error") === "forbidden") {
       setError(
-        "Tài khoản chưa có quyền admin (app_metadata.role = admin). Liên hệ quản trị viên.",
+        "Tài khoản chưa có quyền CMS (role: super_admin / editor / author / viewer).",
       );
     }
   }, []);
@@ -47,11 +47,11 @@ export default function AdminLoginPage() {
       return;
     }
 
-    if (!isAdminUser(data.user)) {
+    if (!isCmsUser(data.user)) {
       await supabase.auth.signOut();
       setLoading(false);
       setError(
-        "Tài khoản chưa có quyền admin. Cần app_metadata.role = \"admin\" trên Supabase Auth.",
+        "Tài khoản chưa có quyền CMS. Cần app_metadata.role hợp lệ (super_admin, editor, author, viewer).",
       );
       return;
     }

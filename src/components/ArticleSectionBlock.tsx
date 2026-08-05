@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { ArticleCard } from "@/components/ArticleCard";
 import type { ArticleSection } from "@/types/content";
 
@@ -15,9 +16,10 @@ export function ArticleSectionBlock({ section }: ArticleSectionBlockProps) {
         </span>
         <Link
           href={section.seeMoreHref}
-          className="shrink-0 text-[15px] font-bold text-brand transition-opacity hover:opacity-80"
+          className="inline-flex shrink-0 items-center gap-0.5 text-[15px] font-bold text-brand transition-opacity hover:opacity-80"
         >
           Xem thêm
+          <ChevronRight className="size-4" aria-hidden />
         </Link>
       </h2>
 

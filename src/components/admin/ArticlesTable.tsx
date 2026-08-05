@@ -8,7 +8,7 @@ import { AdminDataTable } from "@/components/admin/AdminDataTable";
 import { AdminPagination } from "@/components/admin/AdminPagination";
 import { useAdminPagination } from "@/hooks/useAdminPagination";
 import type { AdminArticle, CategoryOption } from "@/lib/admin/articles";
-import { groupCategoryOptions } from "@/lib/admin/articles";
+import { formatAdminDateTime, groupCategoryOptions } from "@/lib/admin/articles";
 import type { AdminTableColumn } from "@/lib/admin/pagination";
 import { createAuthBrowserClient } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
@@ -17,10 +17,12 @@ export function ArticlesTable({
   articles,
   total,
   categories,
+  canWrite = true,
 }: {
   articles: AdminArticle[];
   total: number;
   categories: CategoryOption[];
+  canWrite?: boolean;
 }) {
   const router = useRouter();
   const { confirm, dialog } = useConfirmDialog();
@@ -59,11 +61,16 @@ export function ArticlesTable({
     setBusyId(article.id);
     setError(null);
     const supabase = createAuthBrowserClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     const { error: updateError } = await supabase
       .from("articles")
       .update({
         is_published: !article.is_published,
         updated_at: new Date().toISOString(),
+        updated_by_id: user?.id ?? null,
+        updated_by_email: user?.email ?? null,
       })
       .eq("id", article.id);
     setBusyId(null);
@@ -144,16 +151,44 @@ export function ArticlesTable({
       ),
     },
     {
+      key: "created_by",
+      header: "Tạo bởi",
+      className: "max-w-[160px]",
+      cell: (article) => (
+        <>
+          <p className="truncate">{article.created_by_email || "—"}</p>
+          <p className="mt-0.5 text-[11px] text-[#888]">
+            {formatAdminDateTime(article.created_at)}
+          </p>
+        </>
+      ),
+    },
+    {
+      key: "updated_by",
+      header: "Cập nhật bởi",
+      className: "max-w-[160px]",
+      cell: (article) => (
+        <>
+          <p className="truncate">{article.updated_by_email || "—"}</p>
+          <p className="mt-0.5 text-[11px] text-[#888]">
+            {formatAdminDateTime(article.updated_at)}
+          </p>
+        </>
+      ),
+    },
+    {
       key: "actions",
       header: "Thao tác",
       cell: (article) => (
         <div className="flex flex-wrap gap-2">
-          <Link
-            href={`/admin/articles/${article.id}`}
-            className="text-brand hover:underline"
-          >
-            Sửa
-          </Link>
+          {canWrite ? (
+            <Link
+              href={`/admin/articles/${article.id}`}
+              className="text-brand hover:underline"
+            >
+              Sửa
+            </Link>
+          ) : null}
           <a
             href={article.path}
             target="_blank"
@@ -162,22 +197,26 @@ export function ArticlesTable({
           >
             Xem
           </a>
-          <button
-            type="button"
-            disabled={busyId === article.id}
-            onClick={() => togglePublish(article)}
-            className="text-[#666] hover:text-brand disabled:opacity-50"
-          >
-            {article.is_published ? "Ẩn" : "Publish"}
-          </button>
-          <button
-            type="button"
-            disabled={busyId === article.id}
-            onClick={() => removeArticle(article)}
-            className="text-red-600 hover:underline disabled:opacity-50"
-          >
-            Xóa
-          </button>
+          {canWrite ? (
+            <>
+              <button
+                type="button"
+                disabled={busyId === article.id}
+                onClick={() => togglePublish(article)}
+                className="text-[#666] hover:text-brand disabled:opacity-50"
+              >
+                {article.is_published ? "Ẩn" : "Publish"}
+              </button>
+              <button
+                type="button"
+                disabled={busyId === article.id}
+                onClick={() => removeArticle(article)}
+                className="text-red-600 hover:underline disabled:opacity-50"
+              >
+                Xóa
+              </button>
+            </>
+          ) : null}
         </div>
       ),
     },
@@ -257,12 +296,14 @@ export function ArticlesTable({
             <option value="draft">Draft</option>
           </select>
         </label>
-        <Link
-          href="/admin/articles/new"
-          className="rounded bg-brand px-4 py-2 text-[14px] font-bold text-white"
-        >
-          + Bài mới
-        </Link>
+        {canWrite ? (
+          <Link
+            href="/admin/articles/new"
+            className="rounded bg-brand px-4 py-2 text-[14px] font-bold text-white"
+          >
+            + Bài mới
+          </Link>
+        ) : null}
       </div>
 
       {error ? (

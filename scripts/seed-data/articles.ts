@@ -210,6 +210,13 @@ function buildDetail(article: Article): ArticleDetail | null {
     image: article.image,
     author: DEFAULT_AUTHOR,
     authorBio: DEFAULT_AUTHOR_BIO,
+    authorImage: undefined,
+    authors: [
+      {
+        name: DEFAULT_AUTHOR,
+        bio: DEFAULT_AUTHOR_BIO,
+      },
+    ],
     blocks: isLipfendra
       ? LIPFENDRA_BLOCKS
       : stubBlocks(article.title, article.category, article.excerpt),

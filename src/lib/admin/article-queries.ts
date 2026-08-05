@@ -4,7 +4,7 @@ import type { ArticleBlock } from "@/types/content";
 import { ADMIN_DEFAULT_PAGE_SIZE } from "@/lib/admin/pagination";
 
 const ARTICLE_SELECT =
-  "id, path, slug, year, month, day, title, category_label, category_href, date_label, datetime_label, read_time, image, excerpt, author, author_bio, layout, blocks, content_html, is_published, tags, updated_at";
+  "id, path, slug, year, month, day, title, category_label, category_href, date_label, datetime_label, read_time, image, excerpt, author, author_bio, author_image, layout, blocks, content_html, is_published, tags, created_at, updated_at, created_by_id, created_by_email, updated_by_id, updated_by_email";
 
 export async function listAdminArticles(options?: {
   q?: string;
@@ -69,11 +69,19 @@ export async function getAdminArticleById(id: string) {
   if (error) throw new Error(error.message);
   if (!data) return null;
 
+  const { data: links, error: linkError } = await supabase
+    .from("article_authors")
+    .select("author_id, sort_order")
+    .eq("article_id", id)
+    .order("sort_order", { ascending: true });
+  if (linkError) throw new Error(linkError.message);
+
   return {
     ...(data as AdminArticle),
     tags: ((data as AdminArticle).tags ?? []) as string[],
     blocks: ((data as AdminArticle).blocks ?? []) as ArticleBlock[],
     content_html: (data as AdminArticle).content_html ?? null,
+    author_ids: (links ?? []).map((row) => row.author_id as string),
   };
 }
 

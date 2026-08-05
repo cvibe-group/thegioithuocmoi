@@ -4,24 +4,34 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   BookOpen,
+  Contact,
   FileText,
   Home,
   Folder,
   ImageIcon,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   Menu,
   Palette,
   PanelRight,
   Settings,
+  UserCog,
   Users,
 } from "lucide-react";
+import {
+  ADMIN_NAV_PERMISSION,
+  ROLE_LABELS,
+  type CmsPermission,
+  type CmsRole,
+} from "@/lib/admin/auth";
 import { createAuthBrowserClient } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
 
 const nav = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/admin/articles", label: "Bài viết", icon: FileText },
+  { href: "/admin/authors", label: "Tác giả", icon: Contact },
   { href: "/admin/categories", label: "Danh mục", icon: Folder },
   { href: "/admin/homepage", label: "Homepage", icon: Home },
   { href: "/admin/menu", label: "Menu", icon: Menu },
@@ -30,17 +40,28 @@ const nav = [
   { href: "/admin/about", label: "About us", icon: Users },
   { href: "/admin/media", label: "Media", icon: ImageIcon },
   { href: "/admin/settings", label: "Cài đặt", icon: Settings },
+  { href: "/admin/users", label: "Users", icon: UserCog },
 ];
 
 export function AdminShell({
   children,
   email,
+  role,
+  permissions,
 }: {
   children: React.ReactNode;
   email: string;
+  role: CmsRole | null;
+  permissions: CmsPermission[];
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const allowed = new Set(permissions);
+
+  const visibleNav = nav.filter((item) => {
+    const need = ADMIN_NAV_PERMISSION[item.href];
+    return need ? allowed.has(need) : true;
+  });
 
   async function signOut() {
     const supabase = createAuthBrowserClient();
@@ -58,7 +79,7 @@ export function AdminShell({
             <span className="text-[14px] font-bold">CMS Admin</span>
           </div>
           <nav className="flex-1 space-y-1 p-3">
-            {nav.map((item) => {
+            {visibleNav.map((item) => {
               const active = item.exact
                 ? pathname === item.href
                 : pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -81,7 +102,19 @@ export function AdminShell({
             })}
           </nav>
           <div className="border-t border-border-light p-3">
-            <p className="mb-2 truncate px-2 text-[12px] text-[#666]">{email}</p>
+            <p className="mb-0.5 truncate px-2 text-[12px] text-[#666]">{email}</p>
+            {role ? (
+              <p className="mb-2 px-2 text-[11px] font-medium text-brand">
+                {ROLE_LABELS[role]}
+              </p>
+            ) : null}
+            <Link
+              href="/admin/account"
+              className="mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-[14px] text-[#444] hover:bg-brand-light hover:text-brand"
+            >
+              <KeyRound className="size-4" />
+              Đổi mật khẩu
+            </Link>
             <button
               type="button"
               onClick={signOut}
@@ -99,6 +132,12 @@ export function AdminShell({
               <span className="text-[14px] font-bold">CMS Admin</span>
             </div>
             <div className="ml-auto flex items-center gap-3">
+              <Link
+                href="/admin/account"
+                className="text-[13px] font-medium text-[#666] hover:text-brand"
+              >
+                Đổi MK
+              </Link>
               <Link
                 href="/"
                 target="_blank"

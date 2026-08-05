@@ -11,6 +11,7 @@ import {
   parseAdminPage,
   parseAdminPageSize,
 } from "@/lib/admin/pagination";
+import { requirePermission } from "@/lib/admin/require-permission";
 
 interface PageProps {
   params: Promise<{ slug: string[] }>;
@@ -21,6 +22,7 @@ export default async function AdminCategoryDetailPage({
   params,
   searchParams,
 }: PageProps) {
+  await requirePermission("categories");
   const { slug: parts } = await params;
   const slug = parts.join("/");
   const sp = await searchParams;

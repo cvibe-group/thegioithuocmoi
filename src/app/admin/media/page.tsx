@@ -1,4 +1,5 @@
 import { MediaManager } from "@/components/admin/MediaManager";
+import { requirePermission } from "@/lib/admin/require-permission";
 import { createAuthServerClient } from "@/lib/supabase/server";
 
 const BUCKET = "images";
@@ -16,6 +17,7 @@ interface PageProps {
 }
 
 export default async function AdminMediaPage({ searchParams }: PageProps) {
+  await requirePermission("media");
   const params = await searchParams;
   const folderPath = normalizePath(params.path);
   const supabase = await createAuthServerClient();

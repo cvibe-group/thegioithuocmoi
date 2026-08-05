@@ -1,7 +1,9 @@
 import { HomepageOverview } from "@/components/admin/HomepageOverview";
 import { getAdminHomepageData } from "@/lib/admin/structure-queries";
+import { requirePermission } from "@/lib/admin/require-permission";
 
 export default async function AdminHomepagePage() {
+  await requirePermission("homepage");
   const data = await getAdminHomepageData();
 
   return (

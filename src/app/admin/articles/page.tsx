@@ -4,10 +4,12 @@ import {
   listAdminArticles,
   listCategoryOptions,
 } from "@/lib/admin/article-queries";
+import { hasPermission } from "@/lib/admin/auth";
 import {
   parseAdminPage,
   parseAdminPageSize,
 } from "@/lib/admin/pagination";
+import { requirePermission } from "@/lib/admin/require-permission";
 
 interface PageProps {
   searchParams: Promise<{
@@ -20,6 +22,8 @@ interface PageProps {
 }
 
 export default async function AdminArticlesPage({ searchParams }: PageProps) {
+  const user = await requirePermission("articles.read");
+  const canWrite = hasPermission(user, "articles.write");
   const params = await searchParams;
   const page = parseAdminPage(params.page);
   const pageSize = parseAdminPageSize(params.pageSize);
@@ -51,6 +55,7 @@ export default async function AdminArticlesPage({ searchParams }: PageProps) {
           articles={items}
           total={total}
           categories={categories}
+          canWrite={canWrite}
         />
       </Suspense>
     </div>

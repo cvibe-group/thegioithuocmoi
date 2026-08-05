@@ -28,6 +28,7 @@ create table if not exists public.articles (
   excerpt text,
   author text,
   author_bio text,
+  author_image text,
   layout text check (layout is null or layout in ('card', 'wide', 'featured')),
   blocks jsonb not null default '[]'::jsonb,
   content_html text,
@@ -36,13 +37,40 @@ create table if not exists public.articles (
   tags text[] not null default '{}'::text[],
   search_vector tsvector,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  created_by_id uuid,
+  created_by_email text,
+  updated_by_id uuid,
+  updated_by_email text
 );
 
 create index if not exists articles_category_label_idx on public.articles (category_label);
 create index if not exists articles_year_month_day_slug_idx on public.articles (year, month, day, slug);
 create index if not exists articles_published_on_idx
   on public.articles (is_published, published_on desc nulls last, created_at desc);
+
+create table if not exists public.authors (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text not null unique,
+  bio text not null default '',
+  image text,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists authors_sort_order_idx on public.authors (sort_order, name);
+
+create table if not exists public.article_authors (
+  article_id uuid not null references public.articles(id) on delete cascade,
+  author_id uuid not null references public.authors(id) on delete cascade,
+  sort_order integer not null default 0,
+  primary key (article_id, author_id)
+);
+
+create index if not exists article_authors_author_id_idx
+  on public.article_authors (author_id);
 
 create table if not exists public.homepage_sections (
   id text primary key,
@@ -135,9 +163,13 @@ alter table public.glossary_tabs enable row level security;
 alter table public.glossary_entries enable row level security;
 alter table public.site_settings enable row level security;
 alter table public.category_articles enable row level security;
+alter table public.authors enable row level security;
+alter table public.article_authors enable row level security;
 
 -- Public read policies
 create policy "Public read categories" on public.categories for select to anon, authenticated using (true);
+create policy "Public read authors" on public.authors for select to anon, authenticated using (true);
+create policy "Public read article_authors" on public.article_authors for select to anon, authenticated using (true);
 create policy "Public read articles" on public.articles for select to anon, authenticated using (is_published = true);
 create policy "Public read homepage_sections" on public.homepage_sections for select to anon, authenticated using (true);
 create policy "Public read homepage_section_articles" on public.homepage_section_articles for select to anon, authenticated using (true);
@@ -159,7 +191,12 @@ security definer
 set search_path = public
 as $$
   select coalesce(
-    (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin',
+    (auth.jwt() -> 'app_metadata' ->> 'role') in (
+      'super_admin',
+      'admin',
+      'editor',
+      'author'
+    ),
     false
   );
 $$;
@@ -179,9 +216,13 @@ create policy "Admin write glossary_tabs" on public.glossary_tabs for all to aut
 create policy "Admin write glossary_entries" on public.glossary_entries for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy "Admin write site_settings" on public.site_settings for all to authenticated using (public.is_admin()) with check (public.is_admin());
 create policy "Admin write category_articles" on public.category_articles for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "Admin write authors" on public.authors for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy "Admin write article_authors" on public.article_authors for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 -- Expose to Data API
 grant select on public.categories to anon, authenticated;
+grant select on public.authors to anon, authenticated;
+grant select on public.article_authors to anon, authenticated;
 grant select on public.articles to anon, authenticated;
 grant select on public.homepage_sections to anon, authenticated;
 grant select on public.homepage_section_articles to anon, authenticated;
@@ -195,6 +236,8 @@ grant select on public.site_settings to anon, authenticated;
 grant select on public.category_articles to anon, authenticated;
 
 grant insert, update, delete on public.categories to authenticated;
+grant insert, update, delete on public.authors to authenticated;
+grant insert, update, delete on public.article_authors to authenticated;
 grant insert, update, delete on public.articles to authenticated;
 grant insert, update, delete on public.homepage_sections to authenticated;
 grant insert, update, delete on public.homepage_section_articles to authenticated;

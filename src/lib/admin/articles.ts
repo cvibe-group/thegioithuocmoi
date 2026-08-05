@@ -17,12 +17,20 @@ export type AdminArticle = {
   excerpt: string | null;
   author: string | null;
   author_bio: string | null;
+  author_image: string | null;
+  /** Ordered author ids from article_authors */
+  author_ids?: string[];
   layout: "card" | "wide" | "featured" | null;
   blocks: ArticleBlock[];
   content_html?: string | null;
   is_published: boolean;
   tags?: string[];
+  created_at?: string | null;
   updated_at: string;
+  created_by_id?: string | null;
+  created_by_email?: string | null;
+  updated_by_id?: string | null;
+  updated_by_email?: string | null;
 };
 
 export type CategoryOption = {
@@ -121,6 +129,20 @@ export function toPublishedOn(year: string, month: string, day: string): string 
     return null;
   }
   return `${year}-${pad2(m)}-${pad2(d)}`;
+}
+
+/** Format timestamptz for admin history UI. */
+export function formatAdminDateTime(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export function buildArticlePath(

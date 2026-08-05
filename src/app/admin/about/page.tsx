@@ -1,7 +1,9 @@
 import { AboutEditor } from "@/components/admin/AboutEditor";
 import { getAboutUsSettings } from "@/lib/admin/structure-queries";
+import { requirePermission } from "@/lib/admin/require-permission";
 
 export default async function AdminAboutPage() {
+  await requirePermission("about");
   const about = await getAboutUsSettings();
 
   return (

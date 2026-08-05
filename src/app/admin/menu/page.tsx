@@ -1,7 +1,9 @@
 import { MenuItemsTable } from "@/components/admin/MenuItemsTable";
 import { getAdminNavData } from "@/lib/admin/structure-queries";
+import { requirePermission } from "@/lib/admin/require-permission";
 
 export default async function AdminMenuPage() {
+  await requirePermission("menu");
   const { items } = await getAdminNavData();
 
   return (

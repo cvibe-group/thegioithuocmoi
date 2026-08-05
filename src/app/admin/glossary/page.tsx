@@ -5,6 +5,7 @@ import {
   parseAdminPage,
   parseAdminPageSize,
 } from "@/lib/admin/pagination";
+import { requirePermission } from "@/lib/admin/require-permission";
 
 interface PageProps {
   searchParams: Promise<{
@@ -16,6 +17,7 @@ interface PageProps {
 }
 
 export default async function AdminGlossaryPage({ searchParams }: PageProps) {
+  await requirePermission("glossary");
   const params = await searchParams;
   const data = await getAdminGlossaryData(params.tab, {
     page: parseAdminPage(params.page),

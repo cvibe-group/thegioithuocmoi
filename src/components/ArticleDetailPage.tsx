@@ -153,20 +153,56 @@ export function ArticleDetailPage({
         </div>
       )}
 
-      <section className="mt-10 rounded bg-[rgba(184,9,177,0.06)] p-5 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-          <div className="flex size-[90px] shrink-0 items-center justify-center rounded-full bg-brand text-[28px] font-bold text-white">
-            NS
-          </div>
-          <div>
-            <h5 className="mb-2 text-[18px] font-bold text-brand">
-              {article.author}
-            </h5>
-            <p className="text-[14px] leading-[1.6] text-[#0a0a0a]">
-              {article.authorBio}
-            </p>
-          </div>
-        </div>
+      <section className="mt-10 space-y-4">
+        {(article.authors?.length
+          ? article.authors
+          : [
+              {
+                name: article.author,
+                bio: article.authorBio,
+                image: article.authorImage,
+              },
+            ]
+        ).map((author) => {
+          const initials = author.name
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0]?.toUpperCase() ?? "")
+            .join("");
+          return (
+            <div
+              key={`${author.name}-${author.bio.slice(0, 24)}`}
+              className="rounded bg-[rgba(184,9,177,0.06)] p-5 sm:p-6"
+            >
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                {author.image ? (
+                  <Image
+                    src={author.image}
+                    alt={author.name}
+                    width={90}
+                    height={90}
+                    className="size-[90px] shrink-0 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex size-[90px] shrink-0 items-center justify-center rounded-full bg-brand text-[28px] font-bold text-white">
+                    {initials || "AU"}
+                  </div>
+                )}
+                <div>
+                  <h5 className="mb-2 text-[18px] font-bold text-brand">
+                    {author.name}
+                  </h5>
+                  {author.bio ? (
+                    <p className="text-[14px] leading-[1.6] text-[#0a0a0a]">
+                      {author.bio}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </section>
 
       {article.related.length > 0 && (
