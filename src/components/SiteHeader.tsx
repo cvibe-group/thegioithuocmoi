@@ -161,7 +161,7 @@ export function SiteHeader({
   return (
     <header
       className={cn(
-        "sticky top-0 z-[1001] bg-brand-light transition-[background-color,box-shadow] duration-300",
+        "relative sticky top-0 z-[1001] bg-brand-light transition-[background-color,box-shadow] duration-300",
         scrolled && "shadow-[0_1px_0_rgba(0,0,0,0.06)]",
       )}
     >
@@ -197,7 +197,7 @@ export function SiteHeader({
       </div>
 
       {mobileOpen && (
-        <nav className="border-t border-border-light bg-white px-4 py-3 xl:hidden">
+        <nav className="absolute inset-x-0 top-full w-full border-t border-border-light bg-white px-4 py-3 xl:hidden">
           <ul className="flex flex-col gap-1">
             {navItems.map((item) => (
               <li key={item.label}>
